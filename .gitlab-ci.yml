@@ -1,0 +1,14 @@
+stages:
+  - test
+
+include:
+  - template: Code-Quality.gitlab-ci.yml
+  - template: SAST.gitlab-ci.yml
+  - template: Dependency-Scanning.gitlab-ci.yml
+  - template: Secret-Detection.gitlab-ci.yml
+
+test:
+  stage: test
+  image: golang:1.14
+  script:
+    - go test -cover
