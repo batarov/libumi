@@ -33,3 +33,11 @@ func TestNewTransaction(t *testing.T) {
 		t.Fatalf("Expected: %x, got: %x", libumi.TransactionLength, len(tx))
 	}
 }
+
+func TestTransaction_Hash(t *testing.T) {
+	tx := libumi.NewTransaction()
+
+	if len(tx.Hash()) != 32 {
+		t.Fatalf("Expected: %x, got: %x", 32, len(tx.Hash()))
+	}
+}

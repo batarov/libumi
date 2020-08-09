@@ -1,3 +1,3 @@
 module github.com/umitop/libumi
 
-go 1.14
+go 1.13

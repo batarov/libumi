@@ -1,0 +1,20 @@
+checks:
+  go: true
+build:
+  environment:
+    go: go1.14.7
+  nodes:
+    analysis:
+      tests:
+        override:
+          - go-scrutinizer-run
+    tests:
+      tests:
+        override:
+          - command: go test -coverprofile=cover.out
+            coverage:
+              file: cover.out
+              format: go-cc
+filter:
+  excluded_paths:
+    - "*_test.go"
