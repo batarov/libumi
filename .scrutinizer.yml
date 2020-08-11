@@ -1,17 +1,20 @@
 checks:
   go: true
 build:
-  environment:
-    go:
-      version: go1.14.7
   nodes:
     analysis:
+      environment:
+        go:
+          version: go1.14.7
       tests:
         override:
           - go-scrutinizer-run
     tests:
       project_setup:
         override: true
+      environment:
+        go:
+          version: go1.14.7
       tests:
         override:
           - command: go test -coverprofile=cover.out
