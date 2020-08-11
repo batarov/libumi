@@ -34,7 +34,7 @@ test:
 
 revive:
   stage: test
-  image: golang:1:14
+  image: golang:1.14
   before_script:
     - go get -u github.com/mgechev/revive
   script:
