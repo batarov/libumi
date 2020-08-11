@@ -17,9 +17,9 @@ build:
           version: go1.14.7
       tests:
         override:
-          - command: go test -coverprofile=cover.out && sed -i 's/github.com\/umitop\/libumi\///g' cover.out
+          - command: go test -coverprofile=c.out
             coverage:
-              file: cover.out
+              file: c.out
               format: go-cc
 filter:
   excluded_paths:

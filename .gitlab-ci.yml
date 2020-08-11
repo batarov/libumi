@@ -31,3 +31,17 @@ test:
       junit: junit.xml
   only:
     - master
+
+revive:
+  stage: test
+  image: golang:1:14
+  before_script:
+    - go get -u github.com/mgechev/revive
+  script:
+    - revive
+
+golangci:
+  stage: test
+  image: golangci/golangci-lint:v1.30.0
+  script:
+    - golangci-lint run --enable-all
