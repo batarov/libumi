@@ -15,16 +15,18 @@ test:
     - chmod +x ./cc-test-reporter
     - ./cc-test-reporter before-build
   script:
-    - go test -cover -coverprofile=cover.out -covermode count
+    - go test -coverprofile=cover.out -covermode count
   after_script:
+    - ./cc-test-reporter after-build
     - go get github.com/jstemmer/go-junit-report
     - go get github.com/t-yuki/gocover-cobertura
     - go test -v 2>&1 | go-junit-report -set-exit-code > junit.xml
     - gocover-cobertura < cover.out > cobertura.xml
-    - ./cc-test-reporter after-build
     - bash <(curl -Ls https://coverage.codacy.com/get.sh)
   coverage: '/coverage: \d+.\d+% of statements/'
   artifacts:
     reports:
       cobertura: cobertura.xml
       junit: junit.xml
+  only:
+    - master
