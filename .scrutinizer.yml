@@ -17,7 +17,8 @@ build:
           version: go1.14.7
       tests:
         override:
-          - command: go test -coverprofile=cover.out
+          - commang: go test -coverprofile=cover.out
+          - command: sed -i 's/github.com\/umitop\/libumi\///g' cover.out
             coverage:
               file: cover.out
               format: go-cc
