@@ -9,6 +9,8 @@ build:
       tests:
         override:
           - go-scrutinizer-run
+          - golint-run
+          - govet-run
     tests:
       project_setup:
         override: true
