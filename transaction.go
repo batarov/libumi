@@ -148,14 +148,6 @@ func (t Transaction) SetVersion(v uint8) {
 
 // Sign ...
 func (t Transaction) Sign(b []byte) {
-	t.setNonce(uint64(time.Now().UnixNano()))
-	t.setSignature(ed25519.Sign(b, t[0:85]))
-}
-
-func (t Transaction) setNonce(v uint64) {
-	binary.BigEndian.PutUint64(t[77:85], v)
-}
-
-func (t Transaction) setSignature(b []byte) {
-	copy(t[85:149], b)
+	binary.BigEndian.PutUint64(t[77:85], uint64(time.Now().UnixNano())) // nonce
+	copy(t[85:149], ed25519.Sign(b, t[0:85]))
 }

@@ -114,25 +114,15 @@ func (b Block) PublicKey() []byte {
 	return b[71:103]
 }
 
-// SetPublicKey ...
-func (b Block) SetPublicKey(k []byte) {
-	copy(b[71:103], k)
-}
-
 // Signature ...
 func (b Block) Signature() []byte {
 	return b[103:167]
 }
 
-// SetSignature ...
-func (b Block) SetSignature(s []byte) {
-	copy(b[103:167], s)
-}
-
 // Sign ...
 func (b Block) Sign(k []byte) {
-	b.SetPublicKey((ed25519.PrivateKey)(k).Public().(ed25519.PublicKey))
-	b.SetSignature(ed25519.Sign(k, b[:103]))
+	copy(b[71:103], (ed25519.PrivateKey)(k).Public().(ed25519.PublicKey))
+	copy(b[103:167], ed25519.Sign(k, b[:103]))
 }
 
 // Transaction ...
