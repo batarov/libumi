@@ -41,6 +41,14 @@ const HeaderLength = 167
 // Block ...
 type Block []byte
 
+// AppendTransaction ...
+func AppendTransaction(b Block, t Transaction) Block {
+	b = append(b, t...)
+	binary.BigEndian.PutUint16(b[69:71], b.TxCount()+1)
+
+	return b
+}
+
 // NewBlock ...
 func NewBlock() Block {
 	b := make(Block, HeaderLength)
@@ -101,10 +109,6 @@ func (b Block) TxCount() uint16 {
 	return binary.BigEndian.Uint16(b[69:71])
 }
 
-func (b Block) setTxCount(n uint16) {
-	binary.BigEndian.PutUint16(b[69:71], n)
-}
-
 // PublicKey ...
 func (b Block) PublicKey() []byte {
 	return b[71:103]
@@ -139,20 +143,18 @@ func (b Block) Transaction(idx uint16) Transaction {
 	return Transaction(b[x:y])
 }
 
-// AppendTransaction ...
-func (b *Block) AppendTransaction(t Transaction) {
-	blk := *b
+// Verify ...
+func (b Block) Verify() error {
+	if !ed25519.Verify(b.PublicKey(), b[0:103], b.Signature()) {
+		return ErrBlkInvalidSignature
+	}
 
-	blk = append(blk, t...)
-	blk.setTxCount(blk.TxCount() + 1)
-
-	*b = blk
+	return nil
 }
 
 // CalculateMerkleRoot ...
-func (b Block) CalculateMerkleRoot() (hsh []byte, err error) {
+func CalculateMerkleRoot(b Block) (hsh []byte, err error) {
 	c := b.TxCount()
-
 	h := make([][32]byte, c)
 	u := map[[32]byte]struct{}{}
 
@@ -168,26 +170,6 @@ func (b Block) CalculateMerkleRoot() (hsh []byte, err error) {
 	}
 
 	// step 2
-
-	min := func(a, b int) int {
-		if a > b {
-			return b
-		}
-
-		return a
-	}
-
-	next := func(count int) (nextCount, maxIdx int) {
-		maxIdx = count - 1
-
-		if count > 2 {
-			count += count % 2
-		}
-
-		nextCount = count / 2
-
-		return nextCount, maxIdx
-	}
 
 	t := make([]byte, 64)
 
@@ -207,11 +189,22 @@ func (b Block) CalculateMerkleRoot() (hsh []byte, err error) {
 	return hsh, err
 }
 
-// Verify ...
-func (b Block) Verify() error {
-	if !ed25519.Verify(b.PublicKey(), b[0:103], b.Signature()) {
-		return ErrBlkInvalidSignature
+func min(a, b int) int {
+	if a > b {
+		return b
 	}
 
-	return nil
+	return a
+}
+
+func next(count int) (nextCount, maxIdx int) {
+	maxIdx = count - 1
+
+	if count > 2 {
+		count += count % 2
+	}
+
+	nextCount = count / 2
+
+	return nextCount, maxIdx
 }

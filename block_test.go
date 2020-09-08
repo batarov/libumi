@@ -55,10 +55,10 @@ func TestCalculateMerkleRoot(t *testing.T) {
 				trx[j] = uint8(i)
 			}
 
-			blk.AppendTransaction(trx)
+			blk = libumi.AppendTransaction(blk, trx)
 		}
 
-		act, _ := blk.CalculateMerkleRoot()
+		act, _ := libumi.CalculateMerkleRoot(blk)
 
 		if !bytes.Equal(exp, act) {
 			t.Fatalf("Expected: %x, got: %x", exp, act)
@@ -70,10 +70,10 @@ func TestCalculateMerkleRootError(t *testing.T) {
 	trx := libumi.NewTransaction()
 	blk := libumi.NewBlock()
 
-	blk.AppendTransaction(trx)
-	blk.AppendTransaction(trx)
+	blk = libumi.AppendTransaction(blk, trx)
+	blk = libumi.AppendTransaction(blk, trx)
 
-	_, err := blk.CalculateMerkleRoot()
+	_, err := libumi.CalculateMerkleRoot(blk)
 
 	if !errors.Is(err, libumi.ErrBlkNonUniqueTrx) {
 		t.Fatalf("Expected: %v, got: %v", libumi.ErrBlkNonUniqueTrx, err)

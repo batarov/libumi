@@ -34,6 +34,7 @@ const (
 	bech32Alphabet = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 	verGenesis     = 0
 	verUmi         = 21929
+	genesis        = "genesis"
 )
 
 // ErrInvalidAddress ...
@@ -109,29 +110,60 @@ func bech32Encode(pfx string, pub []byte) string {
 }
 
 func bech32Decode(bech string) (pfx string, data []byte, err error) {
-	if len(bech) != 62 && len(bech) != 66 {
-		return pfx, data, ErrInvalidAddress
-	}
-
 	bech = strings.ToLower(bech)
 
-	sep := strings.LastIndexByte(bech, '1')
-	if sep == -1 {
+	pfx, err = bech32ParsePrefix(bech)
+	if err != nil {
 		return pfx, data, ErrInvalidAddress
 	}
 
-	data, err = bech32Convert5to8([]byte(bech[sep+1 : len(bech)-6]))
+	data, err = bech32Convert5to8([]byte(bech[len(pfx)+1 : len(bech)-6]))
 	if err != nil {
 		return pfx, nil, err
 	}
 
-	pfx = bech[0:sep]
+	if len(data) != 32 {
+		return pfx, data, ErrInvalidAddress
+	}
 
-	if !bech32VerifyChecksum(pfx, []byte(bech[sep+1:])) {
+	if !bech32VerifyChecksum(pfx, []byte(bech[len(pfx)+1:])) {
 		return pfx, nil, ErrInvalidAddress
 	}
 
-	return pfx, data[0:32], err
+	return pfx, data, err
+}
+
+func bech32ParsePrefix(s string) (string, error) {
+	sep := strings.LastIndexByte(s, '1')
+	if sep == -1 {
+		return "", ErrInvalidAddress
+	}
+
+	pfx := s[0:sep]
+
+	if !bech32VerifyPrefix(pfx) {
+		return "", ErrInvalidAddress
+	}
+
+	return pfx, nil
+}
+
+func bech32VerifyPrefix(s string) bool {
+	if s == genesis {
+		return true
+	}
+
+	if len(s) != 3 {
+		return false
+	}
+
+	for i := range s {
+		if strings.IndexByte(prefixAlphabet, s[i]) < 1 {
+			return false
+		}
+	}
+
+	return true
 }
 
 func bech32Convert5to8(data []byte) (out []byte, err error) {
@@ -242,7 +274,7 @@ func bech32VerifyChecksum(prefix string, data []byte) bool {
 }
 
 func prefixToAddressVersion(s string) (a byte, b byte) {
-	if s != "genesis" {
+	if s != genesis {
 		a = ((s[0] - 96) << 2) | ((s[1] - 96) >> 3)
 		b = ((s[1] - 96) << 5) | (s[2] - 96)
 	}
@@ -252,7 +284,7 @@ func prefixToAddressVersion(s string) (a byte, b byte) {
 
 func addressVersionToPrefix(a, b byte) string {
 	if a == 0 && b == 0 {
-		return "genesis"
+		return genesis
 	}
 
 	var s strings.Builder
