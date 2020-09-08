@@ -26,14 +26,13 @@ import (
 	"errors"
 	"github.com/umitop/libumi"
 	"testing"
-	"time"
 )
 
 func TestTxVerifyVersion(t *testing.T) {
 	trx := libumi.NewTransaction()
 	trx.SetVersion(255)
 
-	act := trx.Verify()
+	act := libumi.VerifyTransaction(trx)
 	exp := libumi.ErrInvalidVersion
 
 	if !errors.Is(act, exp) {
@@ -45,23 +44,11 @@ func TestTxVerifyValue(t *testing.T) {
 	trx := libumi.NewTransaction()
 	trx.SetValue(18446744073709551615)
 
-	act := trx.Verify()
+	act := libumi.VerifyTransaction(trx)
 	exp := libumi.ErrInvalidValue
 
 	if !errors.Is(act, exp) {
 		t.Fatalf("Expected: %v, got: %v", exp, act)
-	}
-}
-
-
-func TestTxVerifyNonce(t *testing.T) {
-	n := uint64(time.Now().UnixNano())
-
-	trx := libumi.NewTransaction()
-	trx.SetNonce(n)
-
-	if trx.Nonce() != n {
-		t.Fatalf("Expected: %v, got: %v", n, trx.Nonce())
 	}
 }
 
@@ -71,7 +58,7 @@ func TestVerifyTxBasicSenderRecipientEqual(t *testing.T) {
 	trx.SetSender(libumi.NewAddress())
 	trx.SetRecipient(trx.Sender())
 
-	act := trx.Verify()
+	act := libumi.VerifyTransaction(trx)
 	exp := libumi.ErrInvalidRecipient
 
 	if !errors.Is(act, exp) {
@@ -87,7 +74,7 @@ func TestVerifyTxBasicSenderIsGenesis(t *testing.T) {
 	trx.SetSender(sen)
 	trx.SetRecipient(libumi.NewAddress())
 
-	act := trx.Verify()
+	act := libumi.VerifyTransaction(trx)
 	exp := libumi.ErrInvalidSender
 
 	if !errors.Is(act, exp) {
@@ -103,7 +90,7 @@ func TestVerifyTxBasicRecipientIsGenesis(t *testing.T) {
 	trx.SetSender(libumi.NewAddress())
 	trx.SetRecipient(rcp)
 
-	act := trx.Verify()
+	act := libumi.VerifyTransaction(trx)
 	exp := libumi.ErrInvalidRecipient
 
 	if !errors.Is(act, exp) {
@@ -116,7 +103,7 @@ func TestVerifyTxGenesisSenderIsNotGenesis(t *testing.T) {
 	trx.SetVersion(libumi.Genesis)
 	trx.SetSender(libumi.NewAddress())
 
-	act := trx.Verify()
+	act := libumi.VerifyTransaction(trx)
 	exp := libumi.ErrInvalidSender
 
 	if !errors.Is(act, exp) {
@@ -136,7 +123,7 @@ func TestVerifyTxGenesisRecipientIsNotUmi(t *testing.T) {
 	trx.SetSender(sen)
 	trx.SetRecipient(rcp)
 
-	act := trx.Verify()
+	act := libumi.VerifyTransaction(trx)
 	exp := libumi.ErrInvalidRecipient
 
 	if !errors.Is(act, exp) {
@@ -152,7 +139,7 @@ func TestVerifyTxStructureSenderIsNotUmi(t *testing.T) {
 	trx.SetVersion(libumi.CreateStructure)
 	trx.SetSender(sen)
 
-	act := trx.Verify()
+	act := libumi.VerifyTransaction(trx)
 	exp := libumi.ErrInvalidSender
 
 	if !errors.Is(act, exp) {
@@ -166,7 +153,7 @@ func TestVerifyTxStructurePrefixIsGenesis(t *testing.T) {
 	trx.SetSender(libumi.NewAddress())
 	trx.SetPrefix("genesis")
 
-	act := trx.Verify()
+	act := libumi.VerifyTransaction(trx)
 	exp := libumi.ErrInvalidPrefix
 
 	if !errors.Is(act, exp) {
@@ -180,7 +167,7 @@ func TestVerifyTxStructurePrefixIsUmi(t *testing.T) {
 	trx.SetSender(libumi.NewAddress())
 	trx.SetPrefix("umi")
 
-	act := trx.Verify()
+	act := libumi.VerifyTransaction(trx)
 	exp := libumi.ErrInvalidPrefix
 
 	if !errors.Is(act, exp) {
@@ -194,7 +181,7 @@ func TestVerifyTxStructureInvalidPrefix(t *testing.T) {
 	trx.SetSender(libumi.NewAddress())
 	trx.SetPrefix("~~~")
 
-	act := trx.Verify()
+	act := libumi.VerifyTransaction(trx)
 	exp := libumi.ErrInvalidPrefix
 
 	if !errors.Is(act, exp) {
@@ -209,7 +196,7 @@ func TestVerifyTxStructureInvalidNameLength(t *testing.T) {
 	trx.SetPrefix("aaa")
 	trx[41] = 255
 
-	act := trx.Verify()
+	act := libumi.VerifyTransaction(trx)
 	exp := libumi.ErrInvalidName
 
 	if !errors.Is(act, exp) {
@@ -226,7 +213,7 @@ func TestVerifyTxStructureInvalidNameUtf8(t *testing.T) {
 	trx[41] = 1
 	trx[42] = 255
 
-	act := trx.Verify()
+	act := libumi.VerifyTransaction(trx)
 	exp := libumi.ErrInvalidName
 
 	if !errors.Is(act, exp) {
@@ -242,7 +229,7 @@ func TestVerifyTxStructureInvalidProfitPercent(t *testing.T) {
 	trx.SetName("new name")
 	trx.SetProfitPercent(99)
 
-	act := trx.Verify()
+	act := libumi.VerifyTransaction(trx)
 	exp := libumi.ErrInvalidProfitPercent
 
 	if !errors.Is(act, exp) {
@@ -260,7 +247,7 @@ func TestVerifyTxStructureInvalidFeePercent(t *testing.T) {
 	trx.SetProfitPercent(250)
 	trx.SetFeePercent(5000)
 
-	act := trx.Verify()
+	act := libumi.VerifyTransaction(trx)
 	exp := libumi.ErrInvalidFeePercent
 
 	if !errors.Is(act, exp) {
@@ -282,7 +269,7 @@ func TestVerifyTxInvalidSignature(t *testing.T) {
 	trx.SetRecipient(libumi.NewAddress())
 	trx.Sign(sec)
 
-	act := trx.Verify()
+	act := libumi.VerifyTransaction(trx)
 	exp := libumi.ErrInvalidSignature
 
 	if !errors.Is(act, exp) {
@@ -304,7 +291,7 @@ func TestVerifyTxSignature(t *testing.T) {
 	trx.SetRecipient(libumi.NewAddress())
 	trx.Sign(sec)
 
-	err = trx.Verify()
+	err = libumi.VerifyTransaction(trx)
 
 	if err != nil {
 		t.Fatalf("Expected: nil, got: %v", err)
