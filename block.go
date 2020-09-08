@@ -27,18 +27,16 @@ import (
 	"errors"
 )
 
+// Errors.
 var (
-	// ErrBlkIndexOverflow ...
-	ErrBlkIndexOverflow = errors.New("block: too many transactions")
-	// ErrBlkInvalidSignature ...
 	ErrBlkInvalidSignature = errors.New("block: invalid signature")
-	// ErrBlkInvalidVersion ...
-	ErrBlkInvalidVersion = errors.New("block: invalid version")
-	// ErrBlkInvalidLength ...
-	ErrBlkInvalidLength = errors.New("block: invalid length")
-	// ErrBlkNonUniqueTrx ...
-	ErrBlkNonUniqueTrx = errors.New("block: non-unique transaction")
+	ErrBlkInvalidVersion   = errors.New("block: invalid version")
+	ErrBlkInvalidLength    = errors.New("block: invalid length")
+	ErrBlkNonUniqueTrx     = errors.New("block: non-unique transaction")
 )
+
+// HeaderLength ...
+const HeaderLength = 167
 
 // Block ...
 type Block []byte
@@ -46,7 +44,7 @@ type Block []byte
 // NewBlock ...
 func NewBlock() Block {
 	b := make(Block, HeaderLength)
-	_ = b.SetVersion(1)
+	b.SetVersion(Basic)
 
 	return b
 }
@@ -58,25 +56,14 @@ func (b Block) Hash() []byte {
 	return h[:]
 }
 
-// Header ...
-func (b Block) Header() Header {
-	return Header(b[:HeaderLength])
-}
-
 // Version ...
 func (b Block) Version() uint8 {
 	return b[0]
 }
 
 // SetVersion ...
-func (b Block) SetVersion(ver uint8) (err error) {
-	if ver > 1 {
-		return ErrBlkInvalidVersion
-	}
-
+func (b Block) SetVersion(ver uint8) {
 	b[0] = ver
-
-	return err
 }
 
 // PreviousBlockHash ...
@@ -85,14 +72,8 @@ func (b Block) PreviousBlockHash() []byte {
 }
 
 // SetPreviousBlockHash ...
-func (b Block) SetPreviousBlockHash(h []byte) (err error) {
-	if len(h) != 32 {
-		return ErrBlkInvalidLength
-	}
-
+func (b Block) SetPreviousBlockHash(h []byte) {
 	copy(b[1:33], h)
-
-	return err
 }
 
 // MerkleRootHash ...
@@ -101,14 +82,8 @@ func (b Block) MerkleRootHash() []byte {
 }
 
 // SetMerkleRootHash ...
-func (b Block) SetMerkleRootHash(h []byte) (err error) {
-	if len(h) != 32 {
-		return ErrBlkInvalidLength
-	}
-
+func (b Block) SetMerkleRootHash(h []byte) {
 	copy(b[33:65], h)
-
-	return err
 }
 
 // Timestamp ..
@@ -131,12 +106,12 @@ func (b Block) setTxCount(n uint16) {
 }
 
 // PublicKey ...
-func (b Block) PublicKey() ed25519.PublicKey {
-	return ed25519.PublicKey(b[71:103])
+func (b Block) PublicKey() []byte {
+	return b[71:103]
 }
 
 // SetPublicKey ...
-func (b Block) SetPublicKey(k ed25519.PublicKey) {
+func (b Block) SetPublicKey(k []byte) {
 	copy(b[71:103], k)
 }
 
@@ -146,54 +121,32 @@ func (b Block) Signature() []byte {
 }
 
 // SetSignature ...
-func (b Block) SetSignature(s []byte) (err error) {
-	if len(s) != ed25519.SignatureSize {
-		return ErrBlkInvalidLength
-	}
-
+func (b Block) SetSignature(s []byte) {
 	copy(b[103:167], s)
-
-	return err
 }
 
 // Sign ...
-func (b Block) Sign(k ed25519.PrivateKey) {
-	b.SetPublicKey(k.Public().(ed25519.PublicKey))
-	_ = b.SetSignature(ed25519.Sign(k, b[:103]))
+func (b Block) Sign(k []byte) {
+	b.SetPublicKey((ed25519.PrivateKey)(k).Public().(ed25519.PublicKey))
+	b.SetSignature(ed25519.Sign(k, b[:103]))
 }
 
 // Transaction ...
 func (b Block) Transaction(idx uint16) Transaction {
-	x := int(idx)*TransactionLength + HeaderLength
+	x := HeaderLength + int(idx)*TransactionLength
 	y := x + TransactionLength
 
 	return Transaction(b[x:y])
 }
 
 // AppendTransaction ...
-func (b *Block) AppendTransaction(t Transaction) (err error) {
+func (b *Block) AppendTransaction(t Transaction) {
 	blk := *b
 
-	c := blk.TxCount()
-	if c > 65534 {
-		return ErrBlkIndexOverflow
-	}
-
 	blk = append(blk, t...)
-	blk.setTxCount(c + 1)
+	blk.setTxCount(blk.TxCount() + 1)
 
 	*b = blk
-
-	return err
-}
-
-// Verify ...
-func (b Block) Verify() error {
-	if !ed25519.Verify(b.PublicKey(), b[0:103], b.Signature()) {
-		return ErrBlkInvalidSignature
-	}
-
-	return nil
 }
 
 // CalculateMerkleRoot ...
@@ -252,4 +205,13 @@ func (b Block) CalculateMerkleRoot() (hsh []byte, err error) {
 	copy(hsh, h[0][:])
 
 	return hsh, err
+}
+
+// Verify ...
+func (b Block) Verify() error {
+	if !ed25519.Verify(b.PublicKey(), b[0:103], b.Signature()) {
+		return ErrBlkInvalidSignature
+	}
+
+	return nil
 }

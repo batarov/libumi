@@ -21,114 +21,62 @@
 package libumi
 
 import (
+	"encoding/binary"
 	"errors"
 	"strings"
 )
 
+// AddressLength ...
+const AddressLength = 34
+
 const (
-	// AddressLength ...
-	AddressLength = 34
-
-	alphabet = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+	prefixAlphabet = " abcdefghijklmnopqrstuvwxyz"
+	bech32Alphabet = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+	verGenesis     = 0
+	verUmi         = 21929
 )
 
-var (
-	// ErrAddrInvalidPrefix ...
-	ErrAddrInvalidPrefix = errors.New("address: invalid prefix")
-	// ErrBechInvalidCharacter ...
-	ErrBechInvalidCharacter = errors.New("bech32: invalid character")
-	// ErrBechInvalidChecksum ...
-	ErrBechInvalidChecksum = errors.New("bech32: invalid checksum")
-	// ErrBechInvalidData ...
-	ErrBechInvalidData = errors.New("bech32: invalid data")
-	// ErrBechInvalidLength ...
-	ErrBechInvalidLength = errors.New("bech32: invalid length")
-	// ErrBechMissingSeparator ...
-	ErrBechMissingSeparator = errors.New("bech32: missing separator")
-)
+// ErrInvalidAddress ...
+var ErrInvalidAddress = errors.New("invalid address")
 
 // Address ...
 type Address []byte
 
-// NewAddressFromBech32 ...
-func NewAddressFromBech32(s string) (adr Address, err error) {
-	prefix, bytes, err := decode(s)
-	if err != nil {
-		return adr, err
-	}
-
-	adr = NewAddress()
-	copy(adr[2:], bytes)
-	err = adr.SetPrefix(prefix)
-
-	return adr, err
-}
-
-// NewAddressFromPublicKey ...
-func NewAddressFromPublicKey(k []byte) Address {
-	adr := NewAddress()
-	copy(adr[2:34], k)
-
-	return adr
-}
-
 // NewAddress ...
 func NewAddress() Address {
 	adr := make(Address, AddressLength)
-	_ = adr.SetPrefix("umi")
+	adr.SetPrefix("umi")
 
 	return adr
 }
 
-// NewAddressWithPrefix ...
-func NewAddressWithPrefix(p string) Address {
-	adr := make(Address, AddressLength)
-	_ = adr.SetPrefix(p)
+// NewAddressFromBech32 ...
+func NewAddressFromBech32(s string) (Address, error) {
+	pfx, pub, err := bech32Decode(s)
+	if err != nil {
+		return nil, err
+	}
 
-	return adr
+	adr := NewAddress()
+	adr.SetPrefix(pfx)
+	adr.SetPublicKey(pub)
+
+	return adr, nil
 }
 
 // Bech32 ...
 func (a Address) Bech32() string {
-	return encode(a.Prefix(), a.PublicKey())
+	return bech32Encode(a.Prefix(), a.PublicKey())
 }
 
 // Prefix ...
 func (a Address) Prefix() string {
-	if a[0] == 0 && a[1] == 0 {
-		return "genesis"
-	}
-
-	var p [3]byte
-	p[0] = ((a[0] >> 2) & 31) + 96
-	p[1] = (((a[0] & 3) << 3) | (a[1] >> 5)) + 96
-	p[2] = (a[1] & 31) + 96
-
-	return string(p[:])
+	return addressVersionToPrefix(a[0], a[1])
 }
 
 // SetPrefix ...
-func (a Address) SetPrefix(p string) (err error) {
-	if p == "genesis" {
-		a[0], a[1] = 0, 0
-
-		return err
-	}
-
-	if len(p) != 3 {
-		return ErrAddrInvalidPrefix
-	}
-
-	for _, c := range p {
-		if c < 97 || c > 122 {
-			return ErrAddrInvalidPrefix
-		}
-	}
-
-	a[0] = (((p[0] - 96) & 31) << 2) | (((p[1] - 96) & 31) >> 3)
-	a[1] = ((p[1] - 96) << 5) | ((p[2] - 96) & 31)
-
-	return err
+func (a Address) SetPrefix(s string) {
+	a[0], a[1] = prefixToAddressVersion(s)
 }
 
 // PublicKey ...
@@ -136,55 +84,65 @@ func (a Address) PublicKey() []byte {
 	return a[2:34]
 }
 
-func encode(prefix string, bytes []byte) string {
-	data := convert8to5(bytes)
+// SetPublicKey ...
+func (a Address) SetPublicKey(b []byte) {
+	copy(a[2:34], b)
+}
+
+// Version ...
+func (a Address) Version() uint16 {
+	return binary.BigEndian.Uint16(a[0:2])
+}
+
+func bech32Encode(pfx string, pub []byte) string {
+	data := bech32Convert8to5(pub)
 
 	var s strings.Builder
 
-	s.Grow(59 + len(prefix))
-	s.WriteString(prefix)
+	s.Grow(62)
+	s.WriteString(pfx)
 	s.WriteString("1")
 	s.Write(data)
-	s.Write(createChecksum(prefix, data))
+	s.Write(bech32CreateChecksum(pfx, data))
 
 	return s.String()
 }
 
-func decode(bech string) (pfx string, bytes []byte, err error) {
+func bech32Decode(bech string) (pfx string, data []byte, err error) {
 	if len(bech) != 62 && len(bech) != 66 {
-		return pfx, bytes, ErrBechInvalidLength
+		return pfx, data, ErrInvalidAddress
 	}
 
 	bech = strings.ToLower(bech)
 
 	sep := strings.LastIndexByte(bech, '1')
 	if sep == -1 {
-		return pfx, bytes, ErrBechMissingSeparator
+		return pfx, data, ErrInvalidAddress
 	}
 
-	bytes, err = convert5to8([]byte(bech[sep+1 : len(bech)-6]))
+	data, err = bech32Convert5to8([]byte(bech[sep+1 : len(bech)-6]))
 	if err != nil {
 		return pfx, nil, err
 	}
 
 	pfx = bech[0:sep]
 
-	if !verifyChecksum(pfx, []byte(bech[sep+1:])) {
-		return pfx, nil, ErrBechInvalidChecksum
+	if !bech32VerifyChecksum(pfx, []byte(bech[sep+1:])) {
+		return pfx, nil, ErrInvalidAddress
 	}
 
-	return pfx, bytes[0:32], err
+	return pfx, data[0:32], err
 }
 
-func convert5to8(data []byte) (out []byte, err error) {
+func bech32Convert5to8(data []byte) (out []byte, err error) {
 	var acc, bits int
 
 	out = make([]byte, 0, 32)
 
 	for _, b := range data {
-		v := strings.IndexByte(alphabet, b)
+		v := strings.IndexByte(bech32Alphabet, b)
 		if v == -1 {
-			return nil, ErrBechInvalidCharacter
+			return nil, ErrInvalidAddress
 		}
 
 		acc = (acc << 5) | v
@@ -197,13 +155,13 @@ func convert5to8(data []byte) (out []byte, err error) {
 	}
 
 	if bits >= 5 || (acc<<(8-bits))&0xff > 0 {
-		return nil, ErrBechInvalidData
+		return nil, ErrInvalidAddress
 	}
 
 	return out, err
 }
 
-func convert8to5(data []byte) []byte {
+func bech32Convert8to5(data []byte) []byte {
 	var acc, bits int
 
 	res := make([]byte, 0, 52)
@@ -214,46 +172,46 @@ func convert8to5(data []byte) []byte {
 
 		for bits >= 5 {
 			bits -= 5
-			res = append(res, alphabet[acc>>bits&0x1f])
+			res = append(res, bech32Alphabet[acc>>bits&0x1f])
 		}
 	}
 
 	if bits > 0 {
-		res = append(res, alphabet[acc<<(5-bits)&0x1f])
+		res = append(res, bech32Alphabet[acc<<(5-bits)&0x1f])
 	}
 
 	return res
 }
 
-func createChecksum(prefix string, data []byte) []byte {
-	b := prefixExpand(prefix)
+func bech32CreateChecksum(prefix string, data []byte) []byte {
+	b := bech32PrefixExpand(prefix)
 
 	for _, v := range data {
-		b = append(b, strings.IndexByte(alphabet, v))
+		b = append(b, strings.IndexByte(bech32Alphabet, v))
 	}
 
 	b = append(b, 0, 0, 0, 0, 0, 0)
-	p := polyMod(b) ^ 1
+	p := bech32PolyMod(b) ^ 1
 
 	c := make([]byte, 6)
-	for i := 0; i < 6; i++ {
-		c[i] = alphabet[byte((p>>uint(5*(5-i)))&31)]
+	for i := range c {
+		c[i] = bech32Alphabet[byte((p>>uint(5*(5-i)))&31)]
 	}
 
 	return c
 }
 
-func polyMod(values []int) int {
-	generator := []int{0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3}
+func bech32PolyMod(values []int) int {
+	gen := [...]int{0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3}
 	chk := 1
 
 	for _, v := range values {
 		b := chk >> 25
 		chk = (chk&0x1ffffff)<<5 ^ v
 
-		for i := 0; i < 5; i++ {
+		for i, g := range gen {
 			if (b>>uint(i))&1 == 1 {
-				chk ^= generator[i]
+				chk ^= g
 			}
 		}
 	}
@@ -261,24 +219,48 @@ func polyMod(values []int) int {
 	return chk
 }
 
-func prefixExpand(p string) []int {
+func bech32PrefixExpand(p string) []int {
 	l := len(p)
 	r := make([]int, l*2+1, l*2+59)
 
-	for i := 0; i < l; i++ {
-		r[i] = int(p[i]) >> 5
-		r[i+l+1] = int(p[i]) & 31
+	for i, s := range p {
+		r[i] = int(s) >> 5
+		r[i+l+1] = int(s) & 31
 	}
 
 	return r
 }
 
-func verifyChecksum(prefix string, data []byte) bool {
-	b := prefixExpand(prefix)
+func bech32VerifyChecksum(prefix string, data []byte) bool {
+	b := bech32PrefixExpand(prefix)
 
 	for _, v := range data {
-		b = append(b, strings.IndexByte(alphabet, v))
+		b = append(b, strings.IndexByte(bech32Alphabet, v))
 	}
 
-	return polyMod(b) == 1
+	return bech32PolyMod(b) == 1
+}
+
+func prefixToAddressVersion(s string) (a byte, b byte) {
+	if s != "genesis" {
+		a = ((s[0] - 96) << 2) | ((s[1] - 96) >> 3)
+		b = ((s[1] - 96) << 5) | (s[2] - 96)
+	}
+
+	return a, b
+}
+
+func addressVersionToPrefix(a, b byte) string {
+	if a == 0 && b == 0 {
+		return "genesis"
+	}
+
+	var s strings.Builder
+
+	s.Grow(3)
+	s.WriteByte(((a >> 2) & 31) + 96)
+	s.WriteByte((((a & 3) << 3) | (b >> 5)) + 96)
+	s.WriteByte((b & 31) + 96)
+
+	return s.String()
 }

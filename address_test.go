@@ -21,9 +21,6 @@
 package libumi_test
 
 import (
-	"bytes"
-	"crypto/ed25519"
-	"crypto/rand"
 	"errors"
 	"testing"
 
@@ -31,92 +28,49 @@ import (
 )
 
 func TestBech32(t *testing.T) {
-	exp := "umi1u3dam33jaf64z4s008g7su62j4za72ljqff9dthsataq8k806nfsgrhdhg"
-	adr, _ := libumi.NewAddressFromBech32(exp)
-	act := adr.Bech32()
-
-	if exp != act {
-		t.Fatalf("Expected: %s, got: %s", exp, act)
-	}
-}
-
-func TestKey(t *testing.T) {
-	exp := make([]byte, ed25519.PublicKeySize)
-	_, _ = rand.Read(exp)
-
-	act := libumi.NewAddressFromPublicKey(exp).PublicKey()
-
-	if !bytes.Equal(exp, act) {
-		t.Fatalf("Expected: %x, got: %x", exp, act)
-	}
-}
-
-func TestPrefix(t *testing.T) {
-	tests := []struct {
-		prefix string
-	}{
-		{"genesis"},
-		{"aaa"},
-		{"zzz"},
-		{"umi"},
+	tests := []string{
+		"umi1lllllllllllllllllllllllllllllllllllllllllllllllllllsp2pfg9",
+		"umi1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqr5zcpj",
+		"genesis1llllllllllllllllllllllllllllllllllllllllllllllllllls5c7uy0",
+		"genesis1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkxaddc",
+		"aaa1nfgzzgkr3nd69jes5kw87s2tuv46mhmrqpnw8ksffaujycenxx6sl48tkv",
 	}
 
 	for _, test := range tests {
-		exp := test.prefix
-		act := libumi.NewAddressWithPrefix(exp).Prefix()
-
-		if exp != act {
-			t.Fatalf("Expected: %s, got: %s", exp, act)
-		}
-	}
-}
-
-
-func TestFromBech32(t *testing.T) {
-	tests := []struct {
-		bech32 string
-	}{
-		{"umi1lllllllllllllllllllllllllllllllllllllllllllllllllllsp2pfg9"},
-		{"umi1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqr5zcpj"},
-		{"genesis1llllllllllllllllllllllllllllllllllllllllllllllllllls5c7uy0"},
-		{"genesis1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkxaddc"},
-		{"aaa1nfgzzgkr3nd69jes5kw87s2tuv46mhmrqpnw8ksffaujycenxx6sl48tkv"},
-	}
-
-	for _, test := range tests {
-		_, err := libumi.NewAddressFromBech32(test.bech32)
+		adr, err := libumi.NewAddressFromBech32(test)
 
 		if err != nil {
 			t.Fatalf("Expected: nil, got: %v", err)
 		}
+
+		if adr.Bech32() != test {
+			t.Fatalf("Expected: %s, got: %s", test, adr.Bech32())
+		}
 	}
 }
 
-func TestFromBech32Error(t *testing.T) {
-	tests := []struct {
-		bech32 string
-		err    error
-	}{
-		{"geneziz1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwa7qv0", libumi.ErrAddrInvalidPrefix},
-		{"111111qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqm79fea", libumi.ErrAddrInvalidPrefix},
-		{"abcde1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkkv6m4", libumi.ErrAddrInvalidPrefix},
-		{"um1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj8455g", libumi.ErrAddrInvalidPrefix},
-		{"+++1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq2trd4a", libumi.ErrAddrInvalidPrefix},
-		{"1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqugay46", libumi.ErrAddrInvalidPrefix},
-		{"umi1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqr5zcpf", libumi.ErrBechInvalidChecksum},
-		{"umi1iqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqr5zcpj", libumi.ErrBechInvalidCharacter},
-		{"umilqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqr5zcpj", libumi.ErrBechMissingSeparator},
-		{"umi1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqu5fmc9", libumi.ErrBechInvalidLength},
-		{"umi1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq63dha7", libumi.ErrBechInvalidLength},
-		{"umi1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqlfceute", libumi.ErrBechInvalidData},
+func TestBech32Error(t *testing.T) {
+	tests := []string{
+		"g1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwa7qv0",
+		//"geneziz1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqwa7qv0",
+		//"111111qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqm79fea",
+		//"abcde1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqkkv6m4",
+		//"um1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqj8455g",
+		//"+++1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq2trd4a",
+		//"1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqugay46",
+		"umi1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqr5zcpf",
+		"umi1iqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqr5zcpj",
+		"umilqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqr5zcpj",
+		"umi1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqu5fmc9",
+		"umi1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq63dha7",
+		"umi1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqlfceute",
 	}
 
 	for _, test := range tests {
-		_, err := libumi.NewAddressFromBech32(test.bech32)
+		_, err := libumi.NewAddressFromBech32(test)
 
-		if !errors.Is(err, test.err) {
-			t.Log(test.bech32)
-			t.Fatalf("Expected: %v, got: %v", test.err, err)
+		if !errors.Is(err, libumi.ErrInvalidAddress) {
+			t.Fatalf("Expected: %v, got: %v", libumi.ErrInvalidAddress, err)
 		}
 	}
 }

@@ -26,17 +26,26 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
+	"strings"
 	"time"
 	"unicode/utf8"
 )
 
-const (
-	// TransactionLength ...
-	TransactionLength = 150
-
-	umi     = "umi"
-	genesis = "genesis"
+// Errors.
+var (
+	ErrInvalidVersion       = errors.New("invalid version")
+	ErrInvalidSender        = errors.New("invalid sender")
+	ErrInvalidValue         = errors.New("invalid value")
+	ErrInvalidRecipient     = errors.New("invalid recipient")
+	ErrInvalidPrefix        = errors.New("invalid prefix")
+	ErrInvalidName          = errors.New("invalid name")
+	ErrInvalidFeePercent    = errors.New("invalid fee percent")
+	ErrInvalidProfitPercent = errors.New("invalid profit percent")
+	ErrInvalidSignature     = errors.New("invalid signature")
 )
+
+// TransactionLength ...
+const TransactionLength = 150
 
 // Transaction types.
 const (
@@ -44,23 +53,10 @@ const (
 	Basic
 	CreateStructure
 	UpdateStructure
-	UpdateProfitAddress
-	UpdateFeeAddress
-	CreateTransitAddress
-	DeleteTransitAddress
-)
-
-// Errors.
-var (
-	ErrInvalidVersion       = errors.New("transaction: invalid version")
-	ErrInvalidSender        = errors.New("transaction: invalid sender")
-	ErrInvalidValue         = errors.New("transaction: invalid value")
-	ErrInvalidRecipient     = errors.New("transaction: invalid recipient")
-	ErrInvalidPrefix        = errors.New("transaction: invalid prefix")
-	ErrInvalidName          = errors.New("transaction: invalid name")
-	ErrInvalidFeePercent    = errors.New("transaction: invalid fee percent")
-	ErrInvalidProfitPercent = errors.New("transaction: invalid profit percent")
-	ErrInvalidSignature     = errors.New("transaction: invalid signature")
+	UpdateStructureProfitAddress
+	UpdateStructureFeeAddress
+	CreateStructureTransitAddress
+	DeleteStructureTransitAddress
 )
 
 // Transaction ...
@@ -69,7 +65,7 @@ type Transaction []byte
 // NewTransaction ...
 func NewTransaction() Transaction {
 	t := make(Transaction, TransactionLength)
-	_ = t.SetVersion(Basic)
+	t.SetVersion(Basic)
 
 	return t
 }
@@ -80,10 +76,8 @@ func (t Transaction) FeePercent() uint16 {
 }
 
 // SetFeePercent ...
-func (t Transaction) SetFeePercent(p uint16) (err error) {
+func (t Transaction) SetFeePercent(p uint16) {
 	binary.BigEndian.PutUint16(t[39:41], p)
-
-	return err
 }
 
 // Hash ...
@@ -95,27 +89,13 @@ func (t Transaction) Hash() []byte {
 
 // Name ...
 func (t Transaction) Name() string {
-	s := make([]byte, t[41])
-	copy(s, t[42:(42+t[41])])
-
-	return string(s)
+	return string(t[42:(42 + t[41])])
 }
 
 // SetName ...
-func (t Transaction) SetName(s string) (err error) {
-	if len(s) > 35 {
-		return ErrInvalidName
-	}
-
-	if !utf8.ValidString(s) {
-		return ErrInvalidName
-	}
-
-	copy(t[42:(42+len(s))], s)
-	copy(t[(42+len(s)):76], make([]byte, 35-len(s))) // wipe
+func (t Transaction) SetName(s string) {
 	t[41] = uint8(len(s))
-
-	return err
+	copy(t[42:77], s)
 }
 
 // Nonce ...
@@ -130,30 +110,12 @@ func (t Transaction) SetNonce(v uint64) {
 
 // Prefix ...
 func (t Transaction) Prefix() string {
-	p := make([]byte, 3)
-	p[0] = ((t[35] >> 2) & 31) + 96
-	p[1] = (((t[35] & 3) << 3) | (t[36] >> 5)) + 96
-	p[2] = (t[36] & 31) + 96
-
-	return string(p)
+	return addressVersionToPrefix(t[35], t[36])
 }
 
 // SetPrefix ...
-func (t Transaction) SetPrefix(p string) (err error) {
-	if len(p) != 3 {
-		return ErrInvalidPrefix
-	}
-
-	for _, c := range p {
-		if c < 97 || c > 122 {
-			return ErrInvalidPrefix
-		}
-	}
-
-	t[35] = (((p[0] - 96) & 31) << 2) | (((p[1] - 96) & 31) >> 3)
-	t[36] = ((p[1] - 96) << 5) | ((p[2] - 96) & 31)
-
-	return err
+func (t Transaction) SetPrefix(s string) {
+	t[35], t[36] = prefixToAddressVersion(s)
 }
 
 // ProfitPercent ...
@@ -162,10 +124,8 @@ func (t Transaction) ProfitPercent() uint16 {
 }
 
 // SetProfitPercent ...
-func (t Transaction) SetProfitPercent(v uint16) (err error) {
-	binary.BigEndian.PutUint16(t[37:39], v)
-
-	return err
+func (t Transaction) SetProfitPercent(n uint16) {
+	binary.BigEndian.PutUint16(t[37:39], n)
 }
 
 // Recipient ...
@@ -194,15 +154,8 @@ func (t Transaction) Signature() []byte {
 }
 
 // SetSignature ...
-func (t Transaction) SetSignature(s []byte) (err error) {
-	if len(s) != ed25519.SignatureSize {
-		return ErrInvalidSignature
-	}
-
-	copy(t[85:149], s)
-	t[149] = 0 // wipe
-
-	return err
+func (t Transaction) SetSignature(b []byte) {
+	copy(t[85:149], b)
 }
 
 // Value ...
@@ -211,8 +164,8 @@ func (t Transaction) Value() uint64 {
 }
 
 // SetValue ...
-func (t Transaction) SetValue(v uint64) {
-	binary.BigEndian.PutUint64(t[69:77], v)
+func (t Transaction) SetValue(n uint64) {
+	binary.BigEndian.PutUint64(t[69:77], n)
 }
 
 // Version ...
@@ -221,175 +174,184 @@ func (t Transaction) Version() uint8 {
 }
 
 // SetVersion ...
-func (t Transaction) SetVersion(v uint8) (err error) {
+func (t Transaction) SetVersion(v uint8) {
 	t[0] = v
-
-	return err
 }
 
 // Sign ...
-func (t Transaction) Sign(k ed25519.PrivateKey) {
+func (t Transaction) Sign(b []byte) {
 	t.SetNonce(uint64(time.Now().UnixNano()))
-	_ = t.SetSignature(ed25519.Sign(k, t[0:85]))
+	t.SetSignature(ed25519.Sign(b, t[0:85]))
 }
 
 // Verify ...
 func (t Transaction) Verify() (err error) {
-	err = t.verifyVersion(err)
-	err = t.verifySender(err)
-
-	if t.Version() == CreateStructure || t.Version() == UpdateStructure {
-		err = t.verifyPrefix(err)
-		err = t.verifyName(err)
-		err = t.verifyProfitPercent(err)
-		err = t.verifyFeePercent(err)
-	} else {
-		err = t.verifyRecipient(err)
+	a := []func(Transaction) error{
+		verifyTxVersion,
+		verifyTxValue,
+		verifyTxBasicSenderAndRecipient,
+		verifyTxGenesisSenderAndRecipient,
+		verifyTxStructureSender,
+		verifyTxStructurePrefix,
+		verifyTxStructureName,
+		verifyTxStructureProfitPercent,
+		verifyTxStructureFeePercent,
+		verifyTxSignature,
 	}
 
-	if t.Version() == Genesis || t.Version() == Basic {
-		err = t.verifyValue(err)
-	}
-
-	err = t.verifySignature(err)
-
-	return err
-}
-
-func (t Transaction) verifyVersion(err error) error {
-	if t.Version() > DeleteTransitAddress {
-		err = ErrInvalidVersion
-	}
-
-	return err
-}
-
-func (t Transaction) verifySender(err error) error {
-	if err != nil {
-		return err
-	}
-
-	switch t.Version() {
-	case Genesis:
-		if t.Sender().Prefix() != genesis {
-			err = ErrInvalidSender
-		}
-	case Basic:
-		if t.Sender().Prefix() == genesis {
-			err = ErrInvalidSender
-		}
-	default:
-		if t.Sender().Prefix() != umi {
-			err = ErrInvalidSender
+	for _, f := range a {
+		if err = f(t); err != nil {
+			break
 		}
 	}
 
 	return err
 }
 
-func (t Transaction) verifyRecipient(err error) error {
-	if err != nil {
-		return err
+func verifyTxVersion(t Transaction) error {
+	if t.Version() > DeleteStructureTransitAddress {
+		return ErrInvalidVersion
 	}
 
-	// нельзя отправлять самому себе
+	return nil
+}
+
+func verifyTxGenesisSenderAndRecipient(t Transaction) error {
+	if t.Version() != Genesis {
+		return nil
+	}
+
+	if t.Sender().Version() != verGenesis {
+		return ErrInvalidSender
+	}
+
+	if t.Recipient().Version() != verUmi {
+		return ErrInvalidRecipient
+	}
+
+	return nil
+}
+
+func verifyTxBasicSenderAndRecipient(t Transaction) error {
+	if t.Version() != Basic {
+		return nil
+	}
+
 	if bytes.Equal(t.Sender(), t.Recipient()) {
 		return ErrInvalidRecipient
 	}
 
-	// нельзя отправлять на генезис-адрес
-	if t.Recipient().Prefix() == genesis {
+	if t.Sender().Version() == verGenesis {
+		return ErrInvalidSender
+	}
+
+	if t.Recipient().Version() == verGenesis {
 		return ErrInvalidRecipient
 	}
 
-	if t.Version() != Basic && t.Recipient().Prefix() == umi {
-		return ErrInvalidRecipient
-	}
-
-	return err
+	return nil
 }
 
-func (t Transaction) verifyValue(err error) error {
-	if err != nil {
-		return err
+func verifyTxStructureSender(t Transaction) error {
+	if t.Version() < CreateStructure {
+		return nil
 	}
 
-	if t.Value() > 90_071_992_547_409_91 {
-		return ErrInvalidValue
+	if t.Sender().Version() != verUmi {
+		return ErrInvalidSender
 	}
 
-	return err
+	return nil
 }
 
-func (t Transaction) verifyPrefix(err error) error {
-	if err != nil {
-		return err
+func verifyTxStructurePrefix(t Transaction) error {
+	if t.Version() < CreateStructure {
+		return nil
+	}
+
+	if bytes.Equal(t[35:37], []byte{85, 169}) { // prefix "umi" is prohibited
+		return ErrInvalidPrefix
+	}
+
+	if bytes.Equal(t[35:37], []byte{0, 0}) { // prefix "genesis" is prohibited
+		return ErrInvalidPrefix
 	}
 
 	pfx := t.Prefix()
 
-	for _, c := range pfx {
-		if c < 97 || c > 122 {
+	for i := range pfx {
+		if strings.IndexByte(prefixAlphabet, pfx[i]) == -1 {
 			return ErrInvalidPrefix
 		}
 	}
 
-	if pfx == umi {
-		err = ErrInvalidPrefix
-	}
-
-	return err
+	return nil
 }
 
-func (t Transaction) verifyName(err error) error {
-	if err != nil {
-		return err
+func verifyTxStructureName(t Transaction) error {
+	const maxNameLength = 35
+
+	if t.Version() != CreateStructure && t.Version() != UpdateStructure {
+		return nil
 	}
 
-	if t[41] > 35 {
-		err = ErrInvalidName
+	if t[41] > maxNameLength {
+		return ErrInvalidName
 	}
 
 	if !utf8.Valid(t[42 : 42+t[41]]) {
-		err = ErrInvalidName
+		return ErrInvalidName
 	}
 
-	return err
+	return nil
 }
 
-func (t Transaction) verifyProfitPercent(err error) error {
-	if err != nil {
-		return err
+func verifyTxStructureProfitPercent(t Transaction) error {
+	const (
+		minProfitPercent = 100
+		maxProfitPercent = 500
+	)
+
+	if t.Version() != CreateStructure && t.Version() != UpdateStructure {
+		return nil
 	}
 
 	prf := t.ProfitPercent()
-	if prf < 100 || prf > 500 {
-		err = ErrInvalidProfitPercent
+	if prf < minProfitPercent || prf > maxProfitPercent {
+		return ErrInvalidProfitPercent
 	}
 
-	return err
+	return nil
 }
 
-func (t Transaction) verifyFeePercent(err error) error {
-	if err != nil {
-		return err
+func verifyTxStructureFeePercent(t Transaction) error {
+	const maxFeePercent = 2000
+
+	if t.Version() != CreateStructure && t.Version() != UpdateStructure {
+		return nil
 	}
 
-	if t.FeePercent() > 2000 {
-		err = ErrInvalidFeePercent
+	if t.FeePercent() > maxFeePercent {
+		return ErrInvalidFeePercent
 	}
 
-	return err
+	return nil
 }
 
-func (t Transaction) verifySignature(err error) error {
-	if err != nil {
-		return err
+func verifyTxValue(t Transaction) error {
+	const maxSafeValue = 90_071_992_547_409_91
+
+	if t.Value() > maxSafeValue {
+		return ErrInvalidValue
 	}
 
+	return nil
+}
+
+func verifyTxSignature(t Transaction) error {
 	if !ed25519.Verify(t.Sender().PublicKey(), t[0:85], t.Signature()) {
-		err = ErrInvalidSignature
+		return ErrInvalidSignature
 	}
 
-	return err
+	return nil
 }

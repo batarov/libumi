@@ -55,8 +55,7 @@ func TestCalculateMerkleRoot(t *testing.T) {
 				trx[j] = uint8(i)
 			}
 
-			// t.Logf("%x", trx.Hash())
-			_ = blk.AppendTransaction(trx)
+			blk.AppendTransaction(trx)
 		}
 
 		act, _ := blk.CalculateMerkleRoot()
@@ -71,8 +70,8 @@ func TestCalculateMerkleRootError(t *testing.T) {
 	trx := libumi.NewTransaction()
 	blk := libumi.NewBlock()
 
-	_ = blk.AppendTransaction(trx)
-	_ = blk.AppendTransaction(trx)
+	blk.AppendTransaction(trx)
+	blk.AppendTransaction(trx)
 
 	_, err := blk.CalculateMerkleRoot()
 
