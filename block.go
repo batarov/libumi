@@ -271,6 +271,32 @@ func verifyBlkMerkleRoot(b Block) error {
 }
 
 func verifyBlkTxs(b Block) (err error) {
+	c := fillTxQueue(b)
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < runtime.NumCPU(); i++ {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			for tx := range c {
+				if !verifyBlkTxVersion(b[0], tx[0]) || VerifyTx(tx) != nil {
+					err = ErrBlkInvalidTx
+
+					return
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	return err
+}
+
+func fillTxQueue(b Block) chan []byte {
 	c := make(chan []byte, b.TxCount())
 
 	for i, l := uint16(0), b.TxCount(); i < l; i++ {
@@ -279,29 +305,7 @@ func verifyBlkTxs(b Block) (err error) {
 
 	close(c)
 
-	var wg sync.WaitGroup
-
-	for i := 0; i < runtime.NumCPU(); i++ {
-		wg.Add(1)
-
-		go verifyBlkTx(&wg, &err, c, b.Version())
-	}
-
-	wg.Wait()
-
-	return err
-}
-
-func verifyBlkTx(wg *sync.WaitGroup, err *error, txs <-chan []byte, blkVer uint8) {
-	defer wg.Done()
-
-	for tx := range txs {
-		if !verifyBlkTxVersion(blkVer, tx[0]) || VerifyTx(tx) != nil {
-			*err = ErrBlkInvalidTx
-
-			return
-		}
-	}
+	return c
 }
 
 func verifyBlkTxVersion(blkVer uint8, txVer uint8) bool {

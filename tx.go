@@ -97,7 +97,7 @@ func VerifyTx(t []byte) error {
 func verifyVersionTx(t []byte) error {
 	switch VersionTx(t) {
 	case Basic, Genesis:
-		return verifyTxBasic(t)
+		return verifyTxBasicAndGenesis(t)
 	case CreateStructure, UpdateStructure:
 		return verifyTxStruct(t)
 	case UpdateProfitAddress, UpdateFeeAddress, CreateTransitAddress, DeleteTransitAddress:
@@ -105,6 +105,14 @@ func verifyVersionTx(t []byte) error {
 	default:
 		return ErrTxInvalidVersion
 	}
+}
+
+func verifyTxBasicAndGenesis(t TxBasic) error {
+	if t.Version() == Genesis {
+		return verifyTxGenesis(t)
+	}
+
+	return verifyTxBasic(t)
 }
 
 func verifyTxGenesis(t TxBasic) error {
@@ -120,10 +128,6 @@ func verifyTxGenesis(t TxBasic) error {
 }
 
 func verifyTxBasic(t TxBasic) error {
-	if t.Version() == Genesis {
-		return verifyTxGenesis(t)
-	}
-
 	if bytes.Equal(t.Sender(), t.Recipient()) {
 		return ErrTxInvalidRecipient
 	}
