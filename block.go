@@ -42,7 +42,7 @@ const HeaderLength = 167
 type Block []byte
 
 // AppendTransaction ...
-func AppendTransaction(b Block, t Transaction) Block {
+func AppendTransaction(b Block, t []byte) Block {
 	b = append(b, t...)
 	binary.BigEndian.PutUint16(b[69:71], b.TxCount()+1)
 
@@ -126,9 +126,9 @@ func (b Block) Sign(k []byte) {
 }
 
 // Transaction ...
-func (b Block) Transaction(idx uint16) Transaction {
-	x := HeaderLength + int(idx)*TransactionLength
-	y := x + TransactionLength
+func (b Block) Transaction(idx uint16) []byte {
+	x := HeaderLength + int(idx)*TxLength
+	y := x + TxLength
 
-	return Transaction(b[x:y])
+	return b[x:y]
 }

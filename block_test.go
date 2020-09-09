@@ -47,7 +47,7 @@ func TestCalculateMerkleRoot(t *testing.T) {
 	for _, test := range tests {
 		exp, _ := base64.StdEncoding.DecodeString(test.base64)
 
-		trx := libumi.NewTransaction()
+		trx := libumi.NewTxBasic()
 		blk := libumi.NewBlock()
 
 		for i := 0; i < test.count; i++ {
@@ -67,7 +67,7 @@ func TestCalculateMerkleRoot(t *testing.T) {
 }
 
 func TestCalculateMerkleRootError(t *testing.T) {
-	trx := libumi.NewTransaction()
+	trx := libumi.NewTxBasic()
 	blk := libumi.NewBlock()
 
 	blk = libumi.AppendTransaction(blk, trx)
