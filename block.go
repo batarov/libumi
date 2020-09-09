@@ -137,12 +137,12 @@ func VerifyBlock(b Block) error {
 }
 
 // CalculateMerkleRoot ...
-func CalculateMerkleRoot(b Block) (hsh []byte, err error) {
+func CalculateMerkleRoot(b Block) ([]byte, error) {
 	c := b.TxCount()
 	h := make([][32]byte, c)
 
-	if err = checkUniq(b, h); err != nil {
-		return hsh, err
+	if !checkUniq(b, h) {
+		return nil, ErrBlkNonUniqueTx
 	}
 
 	t := make([]byte, 64)
@@ -157,25 +157,22 @@ func CalculateMerkleRoot(b Block) (hsh []byte, err error) {
 		}
 	}
 
-	hsh = make([]byte, 32)
-	copy(hsh, h[0][:])
-
-	return hsh, err
+	return h[0][:], nil
 }
 
-func checkUniq(b Block, h [][32]byte) error {
-	u := map[[32]byte]struct{}{}
+func checkUniq(b Block, h [][32]byte) bool {
+	u := make(map[[32]byte]struct{}, b.TxCount())
 
 	for i, l := uint16(0), b.TxCount(); i < l; i++ {
 		h[i] = sha256.Sum256(b.Transaction(i))
 		if _, ok := u[h[i]]; ok {
-			return ErrBlkNonUniqueTx
+			return false
 		}
 
 		u[h[i]] = struct{}{}
 	}
 
-	return nil
+	return true
 }
 
 func min(a, b int) int {
@@ -271,32 +268,6 @@ func verifyBlkMerkleRoot(b Block) error {
 }
 
 func verifyBlkTxs(b Block) (err error) {
-	c := fillTxQueue(b)
-
-	var wg sync.WaitGroup
-
-	for i := 0; i < runtime.NumCPU(); i++ {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
-			for tx := range c {
-				if !verifyBlkTxVersion(b[0], tx[0]) || VerifyTx(tx) != nil {
-					err = ErrBlkInvalidTx
-
-					return
-				}
-			}
-		}()
-	}
-
-	wg.Wait()
-
-	return err
-}
-
-func fillTxQueue(b Block) chan []byte {
 	c := make(chan []byte, b.TxCount())
 
 	for i, l := uint16(0), b.TxCount(); i < l; i++ {
@@ -305,7 +276,32 @@ func fillTxQueue(b Block) chan []byte {
 
 	close(c)
 
-	return c
+	runParallel(func() {
+		for tx := range c {
+			if !verifyBlkTxVersion(b[0], tx[0]) || VerifyTx(tx) != nil {
+				err = ErrBlkInvalidTx
+
+				return
+			}
+		}
+	})
+
+	return err
+}
+
+func runParallel(f func()) {
+	var wg sync.WaitGroup
+
+	for i := 0; i < runtime.NumCPU(); i++ {
+		wg.Add(1)
+
+		go func() {
+			f()
+			wg.Done()
+		}()
+	}
+
+	wg.Wait()
 }
 
 func verifyBlkTxVersion(blkVer uint8, txVer uint8) bool {
