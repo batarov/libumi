@@ -73,6 +73,10 @@ func SignTx(t []byte, sec []byte) {
 	setTxSignature(t, ed25519.Sign(sec, t[0:85]))
 }
 
+func setTxVersion(t []byte, n uint8) {
+	t[0] = n
+}
+
 func setTxNonce(t []byte, n uint64) {
 	binary.BigEndian.PutUint64(t[77:85], n)
 }

@@ -26,7 +26,7 @@ type TxAddress []byte
 // NewTxUpdProfitAddr ...
 func NewTxUpdProfitAddr() TxAddress {
 	t := make([]byte, TxLength)
-	t[0] = UpdateProfitAddress
+	setTxVersion(t, UpdateProfitAddress)
 
 	return t
 }
@@ -34,7 +34,7 @@ func NewTxUpdProfitAddr() TxAddress {
 // NewTxUpdFeeAddr ...
 func NewTxUpdFeeAddr() TxAddress {
 	t := make([]byte, TxLength)
-	t[0] = UpdateFeeAddress
+	setTxVersion(t, UpdateFeeAddress)
 
 	return t
 }
@@ -42,7 +42,7 @@ func NewTxUpdFeeAddr() TxAddress {
 // NewTxCrtTransitAddr ...
 func NewTxCrtTransitAddr() TxAddress {
 	t := make([]byte, TxLength)
-	t[0] = CreateTransitAddress
+	setTxVersion(t, CreateTransitAddress)
 
 	return t
 }
@@ -50,7 +50,7 @@ func NewTxCrtTransitAddr() TxAddress {
 // NewTxDelTransitAddr ...
 func NewTxDelTransitAddr() TxAddress {
 	t := make([]byte, TxLength)
-	t[0] = DeleteTransitAddress
+	setTxVersion(t, DeleteTransitAddress)
 
 	return t
 }

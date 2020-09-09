@@ -24,8 +24,9 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
-	"github.com/umitop/libumi"
 	"testing"
+
+	"github.com/umitop/libumi"
 )
 
 func TestTxInvalidVersion(t *testing.T) {
@@ -41,10 +42,7 @@ func TestTxInvalidVersion(t *testing.T) {
 }
 
 func TestTxAddressSign(t *testing.T) {
-	pub, sec, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatalf("Error: %s", err.Error())
-	}
+	pub, sec, _ := ed25519.GenerateKey(rand.Reader)
 
 	snd := libumi.NewAddress()
 	snd.SetPublicKey(pub)
@@ -58,8 +56,7 @@ func TestTxAddressSign(t *testing.T) {
 
 	libumi.SignTx(tx, sec)
 
-	err = libumi.VerifyTx(tx)
-
+	err := libumi.VerifyTx(tx)
 	if err != nil {
 		t.Fatalf("Expected: %v, got: %v", nil, err)
 	}

@@ -30,7 +30,7 @@ type TxStruct []byte
 // NewTxCrtStruct ...
 func NewTxCrtStruct() TxStruct {
 	t := make([]byte, TxLength)
-	t[0] = CreateStructure
+	setTxVersion(t, CreateStructure)
 
 	return t
 }
@@ -38,7 +38,7 @@ func NewTxCrtStruct() TxStruct {
 // NewTxUpdStruct ...
 func NewTxUpdStruct() TxStruct {
 	t := make([]byte, TxLength)
-	t[0] = UpdateStructure
+	setTxVersion(t, UpdateStructure)
 
 	return t
 }

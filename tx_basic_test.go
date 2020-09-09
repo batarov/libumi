@@ -25,8 +25,9 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
-	"github.com/umitop/libumi"
 	"testing"
+
+	"github.com/umitop/libumi"
 )
 
 func TestTxLengthMustBe150Bytes(t *testing.T) {
@@ -41,10 +42,7 @@ func TestTxLengthMustBe150Bytes(t *testing.T) {
 }
 
 func TestTxGenesisSign(t *testing.T) {
-	pub, sec, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatalf("Error: %s", err.Error())
-	}
+	pub, sec, _ := ed25519.GenerateKey(rand.Reader)
 
 	snd := libumi.NewAddress()
 	snd.SetPrefix("genesis")
@@ -58,14 +56,13 @@ func TestTxGenesisSign(t *testing.T) {
 
 	libumi.SignTx(tx, sec)
 
-	err = libumi.VerifyTx(tx)
-
+	err := libumi.VerifyTx(tx)
 	if err != nil {
 		t.Fatalf("Expected: %v, got: %v", nil, err)
 	}
 }
 
-func TestTxGenesisRecipientMustBeUmi(t *testing.T)  {
+func TestTxGenesisRecipientMustBeUmi(t *testing.T) {
 	adr := libumi.NewAddress()
 	adr.SetPrefix("genesis")
 
@@ -82,7 +79,7 @@ func TestTxGenesisRecipientMustBeUmi(t *testing.T)  {
 	}
 }
 
-func TestTxGenesisSenderMustBeGenesis(t *testing.T)  {
+func TestTxGenesisSenderMustBeGenesis(t *testing.T) {
 	tx := libumi.NewTxBasic()
 	tx.SetSender(libumi.NewAddress())
 	tx[0] = libumi.Genesis
@@ -97,10 +94,8 @@ func TestTxGenesisSenderMustBeGenesis(t *testing.T)  {
 
 func TestTxBasicValue(t *testing.T) {
 	b := make([]byte, 8)
-	_, err := rand.Read(b)
-	if err != nil {
-		t.Fatalf("Error: %s", err.Error())
-	}
+
+	_, _ = rand.Read(b)
 
 	val := binary.BigEndian.Uint64(b)
 
@@ -113,10 +108,7 @@ func TestTxBasicValue(t *testing.T) {
 }
 
 func TestTxBasicInvalidSignature(t *testing.T) {
-	pub, sec, err := ed25519.GenerateKey(rand.Reader)
-	if err != nil {
-		t.Fatalf("Error: %s", err.Error())
-	}
+	pub, sec, _ := ed25519.GenerateKey(rand.Reader)
 
 	rcp := libumi.NewAddress()
 	rcp.SetPublicKey(pub)

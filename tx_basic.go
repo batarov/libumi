@@ -30,7 +30,7 @@ type TxBasic []byte
 // NewTxBasic ...
 func NewTxBasic() TxBasic {
 	t := make([]byte, TxLength)
-	t[0] = Basic
+	setTxVersion(t, Basic)
 
 	return t
 }

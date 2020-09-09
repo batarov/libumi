@@ -21,18 +21,24 @@
 package libumi
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
+	"runtime"
+	"sync"
 )
 
 // Errors.
 var (
-	ErrBlkInvalidSignature = errors.New("block: invalid signature")
-	ErrBlkInvalidVersion   = errors.New("block: invalid version")
-	ErrBlkInvalidLength    = errors.New("block: invalid length")
-	ErrBlkNonUniqueTrx     = errors.New("block: non-unique transaction")
+	ErrBlkInvalidLength    = errors.New("invalid length")
+	ErrBlkInvalidVersion   = errors.New("invalid version")
+	ErrBlkInvalidSignature = errors.New("invalid signature")
+	ErrBlkInvalidPrevHash  = errors.New("invalid previous block hash")
+	ErrBlkInvalidMerkle    = errors.New("invalid merkle root")
+	ErrBlkInvalidTx        = errors.New("invalid transaction")
+	ErrBlkNonUniqueTx      = errors.New("non-unique transaction")
 )
 
 // HeaderLength ...
@@ -41,18 +47,10 @@ const HeaderLength = 167
 // Block ...
 type Block []byte
 
-// AppendTransaction ...
-func AppendTransaction(b Block, t []byte) Block {
-	b = append(b, t...)
-	binary.BigEndian.PutUint16(b[69:71], b.TxCount()+1)
-
-	return b
-}
-
 // NewBlock ...
 func NewBlock() Block {
 	b := make(Block, HeaderLength)
-	b.SetVersion(Basic)
+	setBlkVersion(b, Basic)
 
 	return b
 }
@@ -67,11 +65,6 @@ func (b Block) Hash() []byte {
 // Version ...
 func (b Block) Version() uint8 {
 	return b[0]
-}
-
-// SetVersion ...
-func (b Block) SetVersion(ver uint8) {
-	b[0] = ver
 }
 
 // PreviousBlockHash ...
@@ -114,21 +107,207 @@ func (b Block) PublicKey() []byte {
 	return b[71:103]
 }
 
-// Signature ...
-func (b Block) Signature() []byte {
-	return b[103:167]
-}
-
-// Sign ...
-func (b Block) Sign(k []byte) {
-	copy(b[71:103], (ed25519.PrivateKey)(k).Public().(ed25519.PublicKey))
-	copy(b[103:167], ed25519.Sign(k, b[:103]))
-}
-
 // Transaction ...
 func (b Block) Transaction(idx uint16) []byte {
 	x := HeaderLength + int(idx)*TxLength
 	y := x + TxLength
 
 	return b[x:y]
+}
+
+// AppendTransaction ...
+func (b *Block) AppendTransaction(t []byte) {
+	blk := *b
+
+	blk = append(blk, t...)
+	setBlkTxCount(blk, blk.TxCount()+1)
+
+	*b = blk
+}
+
+// SignBlock ...
+func SignBlock(blk []byte, sec []byte) {
+	setBlkPublicKey(blk, (ed25519.PrivateKey)(sec).Public().(ed25519.PublicKey))
+	setBlkSignature(blk, ed25519.Sign(sec, blk[0:103]))
+}
+
+// VerifyBlock ...
+func VerifyBlock(b Block) error {
+	return verifyBlkLength(b)
+}
+
+// CalculateMerkleRoot ...
+func CalculateMerkleRoot(b Block) (hsh []byte, err error) {
+	c := b.TxCount()
+	h := make([][32]byte, c)
+
+	if err = checkUniq(b, h); err != nil {
+		return hsh, err
+	}
+
+	t := make([]byte, 64)
+
+	for n, m := next(int(c)); n > 0; n, m = next(n) {
+		for i := 0; i < n; i++ {
+			k1 := i * 2
+			k2 := min(k1+1, m)
+			copy(t[:32], h[k1][:])
+			copy(t[32:], h[k2][:])
+			h[i] = sha256.Sum256(t)
+		}
+	}
+
+	hsh = make([]byte, 32)
+	copy(hsh, h[0][:])
+
+	return hsh, err
+}
+
+func checkUniq(b Block, h [][32]byte) error {
+	u := map[[32]byte]struct{}{}
+
+	for i, l := uint16(0), b.TxCount(); i < l; i++ {
+		h[i] = sha256.Sum256(b.Transaction(i))
+		if _, ok := u[h[i]]; ok {
+			return ErrBlkNonUniqueTx
+		}
+
+		u[h[i]] = struct{}{}
+	}
+
+	return nil
+}
+
+func min(a, b int) int {
+	if a > b {
+		return b
+	}
+
+	return a
+}
+
+func next(count int) (nextCount, maxIdx int) {
+	maxIdx = count - 1
+
+	if count > 2 {
+		count += count % 2
+	}
+
+	nextCount = count / 2
+
+	return nextCount, maxIdx
+}
+
+func setBlkVersion(b []byte, n uint8) {
+	b[0] = n
+}
+
+func setBlkPublicKey(b []byte, pub []byte) {
+	copy(b[71:103], pub)
+}
+
+func setBlkSignature(b []byte, sig []byte) {
+	copy(b[103:167], sig)
+}
+
+func setBlkTxCount(b []byte, n uint16) {
+	binary.BigEndian.PutUint16(b[69:71], n)
+}
+
+func verifyBlkLength(b Block) error {
+	if len(b) < (HeaderLength + TxLength) {
+		return ErrBlkInvalidLength
+	}
+
+	return verifyBlkVersion(b)
+}
+
+func verifyBlkVersion(b Block) error {
+	switch b.Version() {
+	case Genesis:
+		return verifyBlkGenesis(b)
+	case Basic:
+		return verifyBlkBasic(b)
+	}
+
+	return ErrBlkInvalidVersion
+}
+
+func verifyBlkGenesis(b Block) error {
+	if !bytes.Equal(b.PreviousBlockHash(), make([]byte, 32)) {
+		return ErrBlkInvalidPrevHash
+	}
+
+	return verifyBlkSignature(b)
+}
+
+func verifyBlkBasic(b Block) error {
+	if bytes.Equal(b.PreviousBlockHash(), make([]byte, 32)) {
+		return ErrBlkInvalidPrevHash
+	}
+
+	return verifyBlkSignature(b)
+}
+
+func verifyBlkSignature(b []byte) error {
+	if !ed25519.Verify(b[71:103], b[0:103], b[103:167]) {
+		return ErrBlkInvalidSignature
+	}
+
+	return verifyBlkMerkleRoot(b)
+}
+
+func verifyBlkMerkleRoot(b Block) error {
+	mrk, err := CalculateMerkleRoot(b)
+	if err != nil {
+		return err
+	}
+
+	if !bytes.Equal(b.MerkleRootHash(), mrk) {
+		return ErrBlkInvalidMerkle
+	}
+
+	return verifyBlkTxs(b)
+}
+
+func verifyBlkTxs(b Block) (err error) {
+	c := make(chan []byte, b.TxCount())
+
+	for i, l := uint16(0), b.TxCount(); i < l; i++ {
+		c <- b.Transaction(i)
+	}
+
+	close(c)
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < runtime.NumCPU(); i++ {
+		wg.Add(1)
+
+		go verifyBlkTx(&wg, &err, c, b.Version())
+	}
+
+	wg.Wait()
+
+	return err
+}
+
+func verifyBlkTx(wg *sync.WaitGroup, err *error, txs <-chan []byte, blkVer uint8) {
+	defer wg.Done()
+
+	for tx := range txs {
+		if !verifyBlkTxVersion(blkVer, tx[0]) || VerifyTx(tx) != nil {
+			*err = ErrBlkInvalidTx
+
+			return
+		}
+	}
+}
+
+func verifyBlkTxVersion(blkVer uint8, txVer uint8) bool {
+	if blkVer == Genesis {
+		return txVer == Genesis
+	}
+
+	return txVer != Genesis
 }

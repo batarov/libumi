@@ -38,7 +38,6 @@ func TestBech32(t *testing.T) {
 
 	for _, test := range tests {
 		adr, err := libumi.NewAddressFromBech32(test)
-
 		if err != nil {
 			t.Fatalf("%v Expected: nil, got: %v", test, err)
 		}
