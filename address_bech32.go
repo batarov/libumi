@@ -81,7 +81,7 @@ func bech32ParsePrefix(s string) (string, error) {
 }
 
 func bech32VerifyPrefix(s string) bool {
-	if s == genesis {
+	if s == "genesis" {
 		return true
 	}
 

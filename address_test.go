@@ -73,3 +73,47 @@ func TestBech32Error(t *testing.T) {
 		}
 	}
 }
+
+func TestVerifyAddressInvalidLength(t *testing.T) {
+	tests := [][]byte{
+		nil,
+		make([]byte, 149),
+	}
+
+	for _, test := range tests {
+		act := libumi.VerifyAddress(test)
+		exp := libumi.ErrInvalidLength
+
+		if !errors.Is(act, exp) {
+			t.Fatalf("Expected: %v, got: %v", exp, act)
+		}
+	}
+}
+
+func TestAddress_Version(t *testing.T) {
+	act := uint16(7)
+	exp := libumi.NewAddress().SetVersion(act).Version()
+
+	if act != exp {
+		t.Fatalf("Expected: %v, got: %v", exp, act)
+	}
+}
+
+/*
+func TestVerifyAddressInvalidVersion(t *testing.T) {
+	tests := []uint16{
+		1,
+	}
+
+	for _, test := range tests {
+		adr := libumi.NewAddress().SetVersion(test)
+
+		act := libumi.VerifyAddress(adr)
+		exp := libumi.ErrInvalidPrefix
+
+		if !errors.Is(act, exp) {
+			t.Fatalf("Expected: %v, got: %v", exp, act)
+		}
+	}
+}
+*/

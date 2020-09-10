@@ -22,17 +22,16 @@ package libumi
 
 import (
 	"encoding/binary"
-	"errors"
 	"strings"
 )
 
 // AddressLength ...
 const AddressLength = 34
 
-const genesis = "genesis"
-
-// ErrInvalidAddress ...
-var ErrInvalidAddress = errors.New("invalid address")
+const (
+	genesis uint16 = 0
+	umi     uint16 = 21929
+)
 
 // Address ...
 type Address []byte
@@ -40,7 +39,7 @@ type Address []byte
 // NewAddress ...
 func NewAddress() Address {
 	adr := make(Address, AddressLength)
-	adr.SetPrefix("umi")
+	adr.SetVersion(umi)
 
 	return adr
 }
@@ -64,14 +63,28 @@ func (a Address) Bech32() string {
 	return bech32Encode(a.Prefix(), a.PublicKey())
 }
 
+// Version ...
+func (a Address) Version() uint16 {
+	return binary.BigEndian.Uint16(a[0:2])
+}
+
+// SetVersion ...
+func (a Address) SetVersion(v uint16) Address {
+	binary.BigEndian.PutUint16(a, v)
+
+	return a
+}
+
 // Prefix ...
 func (a Address) Prefix() string {
-	return addressVersionToPrefix(a[0], a[1])
+	return versionToPrefix(a[0], a[1])
 }
 
 // SetPrefix ...
-func (a Address) SetPrefix(s string) {
-	a[0], a[1] = prefixToAddressVersion(s)
+func (a Address) SetPrefix(s string) Address {
+	a[0], a[1] = prefixToVersion(s)
+
+	return a
 }
 
 // PublicKey ...
@@ -80,17 +93,22 @@ func (a Address) PublicKey() []byte {
 }
 
 // SetPublicKey ...
-func (a Address) SetPublicKey(b []byte) {
+func (a Address) SetPublicKey(b []byte) Address {
 	copy(a[2:34], b)
+
+	return a
 }
 
-// Version ...
-func (a Address) Version() uint16 {
-	return binary.BigEndian.Uint16(a[0:2])
+// VerifyAddress ...
+func VerifyAddress(b []byte) error {
+	return assert(b,
+		lengthIs(AddressLength),
+		versionIsValid,
+	)
 }
 
-func prefixToAddressVersion(s string) (a byte, b byte) {
-	if s != genesis {
+func prefixToVersion(s string) (a byte, b byte) {
+	if s != "genesis" {
 		a = ((s[0] - 96) << 2) | ((s[1] - 96) >> 3)
 		b = ((s[1] - 96) << 5) | (s[2] - 96)
 	}
@@ -98,9 +116,9 @@ func prefixToAddressVersion(s string) (a byte, b byte) {
 	return a, b
 }
 
-func addressVersionToPrefix(a, b byte) string {
+func versionToPrefix(a, b byte) string {
 	if a == 0 && b == 0 {
-		return genesis
+		return "genesis"
 	}
 
 	var s strings.Builder
