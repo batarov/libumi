@@ -323,7 +323,7 @@ func TestBlockMustContainValidTxs(t *testing.T) {
 	}
 }
 
-func TestBlockSign(t *testing.T) {
+func TestSignBlock(t *testing.T) {
 	pub, sec, _ := ed25519.GenerateKey(rand.Reader)
 
 	blk := libumi.NewBlock()
@@ -335,11 +335,20 @@ func TestBlockSign(t *testing.T) {
 	}
 }
 
-func TestBlockTimestamp(t *testing.T) {
+func TestBlock_Timestamp(t *testing.T) {
 	blk := libumi.NewBlock()
 
 	exp := uint32(time.Now().Unix())
 	act := blk.SetTimestamp(exp).Timestamp()
+
+	if act != exp {
+		t.Fatalf("Expected: %v, got: %v", exp, act)
+	}
+}
+
+func TestBlock_Version(t *testing.T) {
+	exp := libumi.Genesis
+	act := libumi.NewBlock().SetVersion(libumi.Genesis).Version()
 
 	if act != exp {
 		t.Fatalf("Expected: %v, got: %v", exp, act)

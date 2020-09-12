@@ -313,3 +313,12 @@ func TestTransaction_Prefix(t *testing.T) {
 		t.Fatalf("Expected: %v, got: %v", exp, act)
 	}
 }
+
+func TestTransaction_Version(t *testing.T) {
+	exp := libumi.DeleteTransitAddress
+	act := libumi.NewTransaction().SetVersion(exp).Version()
+
+	if act != exp {
+		t.Fatalf("Expected: %v, got: %v", exp, act)
+	}
+}

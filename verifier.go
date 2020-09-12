@@ -194,15 +194,22 @@ func recipientPrefixIs(v uint16) func([]byte) error {
 
 func recipientPrefixNot(vs ...uint16) func([]byte) error {
 	return func(b []byte) error {
-		n := (Transaction)(b).Recipient().Version()
-		for _, v := range vs {
-			if n == v {
-				return ErrInvalidRecipient
-			}
+		if inArray((Transaction)(b).Recipient().Version(), vs) {
+			return ErrInvalidRecipient
 		}
 
 		return nil
 	}
+}
+
+func inArray(n uint16, vs []uint16) bool {
+	for _, v := range vs {
+		if n == v {
+			return true
+		}
+	}
+
+	return false
 }
 
 func recipientPrefixIsValid(b []byte) error {
@@ -215,11 +222,8 @@ func recipientPrefixIsValid(b []byte) error {
 
 func structPrefixNot(vs ...uint16) func([]byte) error {
 	return func(b []byte) error {
-		n := binary.BigEndian.Uint16(b[35:37])
-		for _, v := range vs {
-			if n == v {
-				return ErrInvalidPrefix
-			}
+		if inArray(binary.BigEndian.Uint16(b[35:37]), vs) {
+			return ErrInvalidPrefix
 		}
 
 		return nil
@@ -275,11 +279,11 @@ func profitPercentBetween(min, max uint16) func([]byte) error {
 func versionIsValid(b []byte) error {
 	switch len(b) {
 	case AddressLength:
-		return adrVersionIsValid((Address)(b).Version())
+		return adrVersionIsValid(binary.BigEndian.Uint16(b[0:2]))
 	case TxLength:
-		return txVersionIsValid((Transaction)(b).Version())
+		return txVersionIsValid(b[0])
 	default:
-		return blkVersionIsValid((Block)(b).Version())
+		return blkVersionIsValid(b[0])
 	}
 }
 
