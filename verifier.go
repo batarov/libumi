@@ -288,7 +288,7 @@ func adrVersionIsValid(v uint16) error {
 		chrBitLen  = 5
 		chrBitMask = 0x1f
 		chrMin     = 1
-		chrMax     = 27
+		chrMax     = 26
 	)
 
 	if v == genesis {
