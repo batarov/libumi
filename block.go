@@ -153,29 +153,21 @@ func VerifyBlock(b []byte) error {
 
 // CalculateMerkleRoot ...
 func CalculateMerkleRoot(b Block) ([]byte, error) {
-	c := b.TxCount()
-	h := make([][32]byte, c)
+	curCount := b.TxCount()
+	h := make([][32]byte, curCount)
 
-	if !checkUniq(b, h) {
+	if !checkUniqTx(b, h) {
 		return nil, ErrNonUniqueTx
 	}
 
-	t := make([]byte, 64)
-
-	for n, m := next(int(c)); n > 0; n, m = next(n) {
-		for i := 0; i < n; i++ {
-			k1 := i * 2 //nolint:gomnd
-			k2 := min(k1+1, m)
-			copy(t[:32], h[k1][:])
-			copy(t[32:], h[k2][:])
-			h[i] = sha256.Sum256(t)
-		}
+	for nextCount, prevCount := nextLevel(int(curCount)); nextCount > 0; nextCount, prevCount = nextLevel(nextCount) {
+		calculateLevel(h, nextCount, prevCount)
 	}
 
 	return h[0][:], nil
 }
 
-func checkUniq(b Block, h [][32]byte) bool {
+func checkUniqTx(b Block, h [][32]byte) bool {
 	u := make(map[[32]byte]struct{}, b.TxCount())
 
 	for i, l := uint16(0), b.TxCount(); i < l; i++ {
@@ -190,6 +182,18 @@ func checkUniq(b Block, h [][32]byte) bool {
 	return true
 }
 
+func calculateLevel(h [][32]byte, nextCount int, prevCount int) {
+	t := make([]byte, 64)
+
+	for i := 0; i < nextCount; i++ {
+		k1 := i * 2 //nolint:gomnd
+		k2 := min(k1+1, prevCount)
+		copy(t[:32], h[k1][:])
+		copy(t[32:], h[k2][:])
+		h[i] = sha256.Sum256(t)
+	}
+}
+
 func min(a, b int) int {
 	if a > b {
 		return b
@@ -198,14 +202,14 @@ func min(a, b int) int {
 	return a
 }
 
-func next(count int) (nextCount, maxIdx int) {
-	maxIdx = count - 1
+func nextLevel(curCount int) (nextCount, maxIdx int) {
+	maxIdx = curCount - 1
 
-	if count > 2 { //nolint:gomnd
-		count += count & 1
+	if curCount > 2 { //nolint:gomnd
+		curCount += curCount & 1
 	}
 
-	nextCount = count / 2 //nolint:gomnd
+	nextCount = curCount / 2 //nolint:gomnd
 
 	return nextCount, maxIdx
 }

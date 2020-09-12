@@ -160,17 +160,18 @@ func VerifyTransaction(t []byte) error {
 	return assert(t,
 		lengthIs(TxLength),
 		versionIsValid,
+
 		ifVersionIsGenesis(
 			senderPrefixIs(genesis),
 			recipientPrefixIs(umi),
 		),
+
 		ifVersionIsBasic(
-			senderPrefixIsValid,
-			recipientPrefixIsValid,
-			senderRecipientNotEqual,
-			senderPrefixNot(genesis),
-			recipientPrefixNot(genesis),
+			senderAndRecipientNotEqual,
+			senderPrefixValidAndNot(genesis),
+			recipientPrefixValidAndNot(genesis),
 		),
+
 		ifVersionIsCreateOrUpdateStruct(
 			senderPrefixIs(umi),
 			structPrefixNot(genesis, umi),
@@ -179,11 +180,12 @@ func VerifyTransaction(t []byte) error {
 			feePercentBetween(0, 20_00),
 			nameIsValid,
 		),
+
 		ifVersionIsUpdateAddress(
 			senderPrefixIs(umi),
-			recipientPrefixNot(genesis, umi),
-			recipientPrefixIsValid,
+			recipientPrefixValidAndNot(genesis, umi),
 		),
+
 		signatureIsValid,
 	)
 }

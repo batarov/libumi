@@ -156,9 +156,15 @@ func senderPrefixIs(v uint16) func([]byte) error {
 	}
 }
 
-func senderPrefixNot(v uint16) func([]byte) error {
+func senderPrefixValidAndNot(v uint16) func([]byte) error {
 	return func(b []byte) error {
-		if (Transaction)(b).Sender().Version() == v {
+		ver := (Transaction)(b).Sender().Version()
+
+		if err := adrVersionIsValid(ver); err != nil {
+			return ErrInvalidSender
+		}
+
+		if ver == v {
 			return ErrInvalidSender
 		}
 
@@ -166,15 +172,7 @@ func senderPrefixNot(v uint16) func([]byte) error {
 	}
 }
 
-func senderPrefixIsValid(b []byte) error {
-	if err := adrVersionIsValid((Transaction)(b).Sender().Version()); err != nil {
-		return ErrInvalidSender
-	}
-
-	return nil
-}
-
-func senderRecipientNotEqual(b []byte) error {
+func senderAndRecipientNotEqual(b []byte) error {
 	if bytes.Equal((Transaction)(b).Recipient(), (Transaction)(b).Sender()) {
 		return ErrInvalidRecipient
 	}
@@ -192,9 +190,15 @@ func recipientPrefixIs(v uint16) func([]byte) error {
 	}
 }
 
-func recipientPrefixNot(vs ...uint16) func([]byte) error {
+func recipientPrefixValidAndNot(vs ...uint16) func([]byte) error {
 	return func(b []byte) error {
-		if inArray((Transaction)(b).Recipient().Version(), vs) {
+		ver := (Transaction)(b).Recipient().Version()
+
+		if err := adrVersionIsValid(ver); err != nil {
+			return ErrInvalidRecipient
+		}
+
+		if inArray(ver, vs) {
 			return ErrInvalidRecipient
 		}
 
@@ -210,14 +214,6 @@ func inArray(n uint16, vs []uint16) bool {
 	}
 
 	return false
-}
-
-func recipientPrefixIsValid(b []byte) error {
-	if err := adrVersionIsValid((Transaction)(b).Recipient().Version()); err != nil {
-		return ErrInvalidRecipient
-	}
-
-	return nil
 }
 
 func structPrefixNot(vs ...uint16) func([]byte) error {
