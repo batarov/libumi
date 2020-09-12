@@ -36,8 +36,7 @@ func TestTransaction_ValidGenesis(t *testing.T) {
 	tx := libumi.NewTransaction().
 		SetVersion(libumi.Genesis).
 		SetSender(libumi.NewAddress().SetPrefix("genesis").SetPublicKey(pub)).
-		SetRecipient(libumi.NewAddress().SetPrefix("umi").SetPublicKey(pub)).
-		SetValue(42)
+		SetRecipient(libumi.NewAddress().SetPrefix("umi"))
 
 	libumi.SignTransaction(tx, sec)
 
@@ -53,8 +52,7 @@ func TestTransaction_ValidBasic(t *testing.T) {
 	tx := libumi.NewTransaction().
 		SetVersion(libumi.Basic).
 		SetSender(libumi.NewAddress().SetPrefix("umi").SetPublicKey(pub)).
-		SetRecipient(libumi.NewAddress().SetPrefix("aaa").SetPublicKey(pub)).
-		SetValue(42)
+		SetRecipient(libumi.NewAddress().SetPrefix("aaa"))
 
 	libumi.SignTransaction(tx, sec)
 
@@ -132,14 +130,7 @@ func TestTransaction_Length(t *testing.T) {
 }
 
 func TestTransaction_InvalidVersion(t *testing.T) {
-	pub, sec, _ := ed25519.GenerateKey(rand.Reader)
-
-	tx := libumi.NewTransaction().
-		SetVersion(255).
-		SetSender(libumi.NewAddress().SetPrefix("umi").SetPublicKey(pub)).
-		SetRecipient(libumi.NewAddress().SetPrefix("abc"))
-
-	libumi.SignTransaction(tx, sec)
+	tx := libumi.NewTransaction().SetVersion(255)
 
 	err := libumi.VerifyTransaction(tx)
 	exp := libumi.ErrInvalidVersion
@@ -159,7 +150,7 @@ func TestTransaction_InvalidGenesis(t *testing.T) {
 			name: "sender must be genesis",
 			data: libumi.NewTransaction().
 				SetVersion(libumi.Genesis).
-				SetSender(libumi.NewAddress().SetPrefix("aaa")),
+				SetSender(libumi.NewAddress().SetPrefix("bbb")),
 			exp: libumi.ErrInvalidSender,
 		},
 		{
@@ -167,7 +158,7 @@ func TestTransaction_InvalidGenesis(t *testing.T) {
 			data: libumi.NewTransaction().
 				SetVersion(libumi.Genesis).
 				SetSender(libumi.NewAddress().SetPrefix("genesis")).
-				SetRecipient(libumi.NewAddress().SetPrefix("abc")),
+				SetRecipient(libumi.NewAddress().SetPrefix("cde")),
 			exp: libumi.ErrInvalidRecipient,
 		},
 	}
@@ -191,39 +182,31 @@ func TestTransaction_InvalidBasic(t *testing.T) {
 	}{
 		{
 			name: "sender prefix must be valid",
-			data: libumi.NewTransaction().
-				SetVersion(libumi.Basic).
-				SetSender(libumi.NewAddress().SetPrefix("}}}")),
-			exp: libumi.ErrInvalidSender,
+			data: libumi.NewTransaction().SetSender(libumi.NewAddress().SetPrefix("}}}")),
+			exp:  libumi.ErrInvalidSender,
 		},
 		{
 			name: "sender and recipient must be not equal",
-			data: libumi.NewTransaction().
-				SetVersion(libumi.Basic).
-				SetSender(libumi.NewAddress().SetPrefix("aaa").SetPublicKey(make([]byte, 32))).
-				SetRecipient(libumi.NewAddress().SetPrefix("aaa").SetPublicKey(make([]byte, 32))),
-			exp: libumi.ErrInvalidRecipient,
+			data: libumi.NewTransaction().SetSender(libumi.NewAddress()).SetRecipient(libumi.NewAddress()),
+			exp:  libumi.ErrInvalidRecipient,
 		},
 		{
 			name: "sender must be not genesis",
 			data: libumi.NewTransaction().
-				SetVersion(libumi.Basic).
 				SetSender(libumi.NewAddress().SetPrefix("genesis")).
-				SetRecipient(libumi.NewAddress().SetPrefix("umi")),
+				SetRecipient(libumi.NewAddress().SetPrefix("qwe")),
 			exp: libumi.ErrInvalidSender,
 		},
 		{
 			name: "recipient must be not genesis",
 			data: libumi.NewTransaction().
-				SetVersion(libumi.Basic).
-				SetSender(libumi.NewAddress().SetPrefix("umi")).
+				SetSender(libumi.NewAddress().SetPrefix("ghj")).
 				SetRecipient(libumi.NewAddress().SetPrefix("genesis")),
 			exp: libumi.ErrInvalidRecipient,
 		},
 		{
 			name: "recipient prefix must be valid",
 			data: libumi.NewTransaction().
-				SetVersion(libumi.Basic).
 				SetSender(libumi.NewAddress().SetPrefix("umi")).
 				SetRecipient(libumi.NewAddress().SetVersion(1)),
 			exp: libumi.ErrInvalidRecipient,

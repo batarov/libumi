@@ -23,6 +23,7 @@ package libumi
 import (
 	"bytes"
 	"crypto/ed25519"
+	"encoding/binary"
 	"errors"
 	"runtime"
 	"sync"
@@ -214,7 +215,7 @@ func recipientPrefixIsValid(b []byte) error {
 
 func structPrefixNot(vs ...uint16) func([]byte) error {
 	return func(b []byte) error {
-		n := (Transaction)(b).Recipient().Version()
+		n := binary.BigEndian.Uint16(b[35:37])
 		for _, v := range vs {
 			if n == v {
 				return ErrInvalidPrefix

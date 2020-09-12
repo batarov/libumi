@@ -90,8 +90,7 @@ func TestBlockGenesis(t *testing.T) {
 	tx := libumi.NewTransaction().
 		SetVersion(libumi.Genesis).
 		SetSender(libumi.NewAddress().SetPrefix("genesis").SetPublicKey(pub)).
-		SetRecipient(libumi.NewAddress().SetPrefix("umi").SetPublicKey(pub)).
-		SetValue(42)
+		SetRecipient(libumi.NewAddress())
 
 	libumi.SignTransaction(tx, sec)
 
@@ -116,8 +115,7 @@ func TestBlockBasic(t *testing.T) {
 	tx := libumi.NewTransaction().
 		SetVersion(libumi.Basic).
 		SetSender(libumi.NewAddress().SetPrefix("umi").SetPublicKey(pub)).
-		SetRecipient(libumi.NewAddress().SetPrefix("aaa").SetPublicKey(pub)).
-		SetValue(42)
+		SetRecipient(libumi.NewAddress().SetPrefix("aaa"))
 
 	libumi.SignTransaction(tx, sec)
 
