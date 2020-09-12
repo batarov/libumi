@@ -284,20 +284,13 @@ func versionIsValid(b []byte) error {
 }
 
 func adrVersionIsValid(v uint16) error {
-	const (
-		chrBitLen  = 5
-		chrBitMask = 0x1f
-		chrMin     = 1
-		chrMax     = 26
-	)
-
 	if v == genesis {
 		return nil
 	}
 
 	for i := 0; i < 3; i++ {
-		chr := (v >> (i * chrBitLen)) & chrBitMask
-		if chr < chrMin || chr > chrMax {
+		chr := (v >> (i * 5)) & 31 //nolint:gomnd
+		if chr < 1 || chr > 26 {
 			return ErrInvalidPrefix
 		}
 	}
@@ -371,12 +364,11 @@ func allTransactionNotGenesis(b []byte) error {
 }
 
 func allTransactionsAreValid(b []byte) error {
-	blk := (Block)(b)
-	n := blk.TxCount()
+	n := (Block)(b).TxCount()
 	c := make(chan []byte, n)
 
 	for i, l := uint16(0), n; i < l; i++ {
-		c <- blk.Transaction(i)
+		c <- (Block)(b).Transaction(i)
 	}
 
 	close(c)
