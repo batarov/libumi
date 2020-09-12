@@ -363,38 +363,16 @@ func allTransactionNotGenesis(b []byte) error {
 	return nil
 }
 
-func allTransactionsAreValid(b []byte) error {
-	n := (Block)(b).TxCount()
-	c := make(chan []byte, n)
+func allTransactionsAreValid(b []byte) (err error) {
+	c := fillQueue(b)
 
-	for i, l := uint16(0), n; i < l; i++ {
-		c <- (Block)(b).Transaction(i)
-	}
-
-	close(c)
-
-	return runParallel(func() error {
-		for tx := range c {
-			if VerifyTransaction(tx) != nil {
-				return ErrInvalidTx
-			}
-		}
-
-		return nil
-	})
-}
-
-func runParallel(fn func() error) (err error) {
 	var wg sync.WaitGroup
 
 	for i := 0; i < runtime.NumCPU(); i++ {
 		wg.Add(1)
 
 		go func() {
-			if er := fn(); er != nil {
-				err = er
-			}
-
+			validateQueue(c, &err)
 			wg.Done()
 		}()
 	}
@@ -402,4 +380,28 @@ func runParallel(fn func() error) (err error) {
 	wg.Wait()
 
 	return err
+}
+
+func fillQueue(b []byte) <-chan []byte {
+	blk := (Block)(b)
+	n := blk.TxCount()
+	c := make(chan []byte, n)
+
+	for i, l := uint16(0), n; i < l; i++ {
+		c <- blk.Transaction(i)
+	}
+
+	close(c)
+
+	return c
+}
+
+func validateQueue(c <-chan []byte, err *error) {
+	for tx := range c {
+		if VerifyTransaction(tx) != nil {
+			*err = ErrInvalidTx
+
+			return
+		}
+	}
 }
