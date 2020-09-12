@@ -30,6 +30,24 @@ import (
 	"github.com/umitop/libumi"
 )
 
+type txCases struct {
+	name string
+	data []byte
+	exp  error
+}
+
+func txTestCases(t *testing.T, cases []txCases) {
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			err := libumi.VerifyTransaction(tc.data)
+			if !errors.Is(err, tc.exp) {
+				t.Fatalf("Expected: %v, got: %v", tc.exp, err)
+			}
+		})
+	}
+}
+
 func TestTransaction_ValidGenesis(t *testing.T) {
 	pub, sec, _ := ed25519.GenerateKey(rand.Reader)
 
@@ -98,35 +116,25 @@ func TestTransaction_ValidAddress(t *testing.T) {
 }
 
 func TestTransaction_Length(t *testing.T) {
-	cases := []struct {
-		name string
-		data []byte
-	}{
+	cases := []txCases{
 		{
 			name: "null",
 			data: nil,
+			exp:  libumi.ErrInvalidLength,
 		},
 		{
 			name: "too short",
 			data: make([]byte, libumi.TxLength-1),
+			exp:  libumi.ErrInvalidLength,
 		},
 		{
 			name: "too long",
 			data: make([]byte, libumi.TxLength+1),
+			exp:  libumi.ErrInvalidLength,
 		},
 	}
 
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			err := libumi.VerifyTransaction(tc.data)
-			exp := libumi.ErrInvalidLength
-
-			if !errors.Is(err, exp) {
-				t.Fatalf("Expected: %v, got: %v", exp, err)
-			}
-		})
-	}
+	txTestCases(t, cases)
 }
 
 func TestTransaction_InvalidVersion(t *testing.T) {
@@ -141,11 +149,7 @@ func TestTransaction_InvalidVersion(t *testing.T) {
 }
 
 func TestTransaction_InvalidGenesis(t *testing.T) {
-	cases := []struct {
-		name string
-		data []byte
-		exp  error
-	}{
+	cases := []txCases{
 		{
 			name: "sender must be genesis",
 			data: libumi.NewTransaction().
@@ -163,23 +167,11 @@ func TestTransaction_InvalidGenesis(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			err := libumi.VerifyTransaction(tc.data)
-			if !errors.Is(err, tc.exp) {
-				t.Fatalf("Expected: %v, got: %v", tc.exp, err)
-			}
-		})
-	}
+	txTestCases(t, cases)
 }
 
 func TestTransaction_InvalidBasic(t *testing.T) {
-	cases := []struct {
-		name string
-		data []byte
-		exp  error
-	}{
+	cases := []txCases{
 		{
 			name: "sender prefix must be valid",
 			data: libumi.NewTransaction().SetSender(libumi.NewAddress().SetPrefix("}}}")),
@@ -213,23 +205,11 @@ func TestTransaction_InvalidBasic(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			err := libumi.VerifyTransaction(tc.data)
-			if !errors.Is(err, tc.exp) {
-				t.Fatalf("Expected: %v, got: %v", tc.exp, err)
-			}
-		})
-	}
+	txTestCases(t, cases)
 }
 
 func TestTransaction_InvalidAddress(t *testing.T) {
-	cases := []struct {
-		name string
-		data []byte
-		exp  error
-	}{
+	cases := []txCases{
 		{
 			name: "sender must be umi",
 			data: libumi.NewTransaction().
@@ -263,101 +243,93 @@ func TestTransaction_InvalidAddress(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			err := libumi.VerifyTransaction(tc.data)
-			if !errors.Is(err, tc.exp) {
-				t.Fatalf("Expected: %v, got: %v", tc.exp, err)
-			}
-		})
-	}
+	txTestCases(t, cases)
 }
 
 func TestTransaction_InvalidStruct(t *testing.T) {
-	cases := []struct {
-		name string
-		data []byte
-		exp  error
-	}{
+	cases := []txCases{
 		{
 			name: "sender must be umi",
-			data: libumi.NewTransaction().SetVersion(libumi.CreateStructure).
+			data: libumi.NewTransaction().
+				SetVersion(libumi.CreateStructure).
 				SetSender(libumi.NewAddress().SetPrefix("aaa")),
 			exp: libumi.ErrInvalidSender,
 		},
 		{
 			name: "prefix can not be umi",
-			data: libumi.NewTransaction().SetVersion(libumi.CreateStructure).SetSender(libumi.NewAddress()).
+			data: libumi.NewTransaction().
+				SetVersion(libumi.CreateStructure).
+				SetSender(libumi.NewAddress()).
 				SetPrefix("umi"),
 			exp: libumi.ErrInvalidPrefix,
 		},
 		{
 			name: "prefix can not be genesis",
-			data: libumi.NewTransaction().SetVersion(libumi.CreateStructure).SetSender(libumi.NewAddress()).
+			data: libumi.NewTransaction().
+				SetVersion(libumi.CreateStructure).
+				SetSender(libumi.NewAddress()).
 				SetPrefix("genesis"),
 			exp: libumi.ErrInvalidPrefix,
 		},
 		{
 			name: "prefix must be valid",
-			data: libumi.NewTransaction().SetVersion(libumi.CreateStructure).SetSender(libumi.NewAddress()).
+			data: libumi.NewTransaction().
+				SetVersion(libumi.CreateStructure).
+				SetSender(libumi.NewAddress()).
 				SetPrefix("}}}"),
 			exp: libumi.ErrInvalidPrefix,
 		},
 		{
 			name: "profit percent must be between 1_00 and 5_00",
-			data: libumi.NewTransaction().SetVersion(libumi.CreateStructure).SetSender(libumi.NewAddress()).
-				SetPrefix("aaa").SetProfitPercent(10_00),
+			data: libumi.NewTransaction().
+				SetVersion(libumi.CreateStructure).
+				SetSender(libumi.NewAddress()).
+				SetPrefix("aaa").
+				SetProfitPercent(10_00),
 			exp: libumi.ErrInvalidProfitPercent,
 		},
 		{
 			name: "fee percent must be between 0 and 20_00",
-			data: libumi.NewTransaction().SetVersion(libumi.CreateStructure).SetSender(libumi.NewAddress()).
-				SetPrefix("aaa").SetProfitPercent(1_23).SetFeePercent(23_45),
+			data: libumi.NewTransaction().
+				SetVersion(libumi.CreateStructure).
+				SetSender(libumi.NewAddress()).
+				SetPrefix("aaa").
+				SetProfitPercent(1_23).
+				SetFeePercent(23_45),
 			exp: libumi.ErrInvalidFeePercent,
 		},
 	}
 
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			err := libumi.VerifyTransaction(tc.data)
-			if !errors.Is(err, tc.exp) {
-				t.Fatalf("Expected: %v, got: %v", tc.exp, err)
-			}
-		})
-	}
+	txTestCases(t, cases)
 }
 
 func TestTransaction_InvalidStructName(t *testing.T) {
-	cases := []struct {
-		name string
-		data []byte
-		exp  error
-	}{
+	cases := []txCases{
 		{
 			name: "name length must be 35 bytes or less",
-			data: libumi.NewTransaction().SetVersion(libumi.CreateStructure).SetSender(libumi.NewAddress()).
-				SetPrefix("aaa").SetProfitPercent(1_23).SetFeePercent(12_34).SetName(strings.Repeat("a", 36)),
+			data: libumi.NewTransaction().
+				SetVersion(libumi.CreateStructure).
+				SetSender(libumi.NewAddress()).
+				SetPrefix("aaa").
+				SetProfitPercent(1_23).
+				SetFeePercent(12_34).
+				SetName(strings.Repeat("a", 36)),
 			exp: libumi.ErrInvalidName,
 		},
 		{
 			name: "name must be valid UTF-8 string",
-			data: libumi.NewTransaction().SetVersion(libumi.CreateStructure).SetSender(libumi.NewAddress()).
-				SetPrefix("aaa").SetProfitPercent(1_23).SetFeePercent(12_34).SetName("\xff\x01\x01\x01"),
+			data: libumi.NewTransaction().
+				SetVersion(libumi.CreateStructure).
+				SetSender(libumi.NewAddress()).
+				SetPrefix("aaa").
+				SetProfitPercent(1_23).
+				SetFeePercent(12_34).
+				SetName("\xff\x01\x01\x01"),
 			exp: libumi.ErrInvalidName,
 		},
 	}
 
-	for _, tc := range cases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			err := libumi.VerifyTransaction(tc.data)
-			if !errors.Is(err, tc.exp) {
-				t.Fatalf("Expected: %v, got: %v", tc.exp, err)
-			}
-		})
-	}
+	txTestCases(t, cases)
 }
 
 func TestTransaction_InvalidSignature(t *testing.T) {
