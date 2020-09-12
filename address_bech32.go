@@ -25,6 +25,10 @@ import "strings"
 const (
 	prefixAlphabet = " abcdefghijklmnopqrstuvwxyz"
 	bech32Alphabet = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+	pfxGenesis     = "genesis"
+	pfxLen         = 3
+	dataLen        = 59
+	addressLen     = 62
 )
 
 func bech32Encode(pfx string, pub []byte) string {
@@ -32,7 +36,7 @@ func bech32Encode(pfx string, pub []byte) string {
 
 	var s strings.Builder
 
-	s.Grow(62)
+	s.Grow(addressLen)
 	s.WriteString(pfx)
 	s.WriteString("1")
 	s.Write(data)
@@ -67,7 +71,7 @@ func bech32ParsePrefix(s string) (string, error) {
 		return "", ErrInvalidAddress
 	}
 
-	if len(s)-sep != 59 {
+	if len(s)-sep != dataLen {
 		return "", ErrInvalidAddress
 	}
 
@@ -81,11 +85,11 @@ func bech32ParsePrefix(s string) (string, error) {
 }
 
 func bech32VerifyPrefix(s string) bool {
-	if s == "genesis" {
+	if s == pfxGenesis {
 		return true
 	}
 
-	if len(s) != 3 {
+	if len(s) != pfxLen {
 		return false
 	}
 
@@ -114,7 +118,7 @@ func bech32Convert5to8(data []byte) (out []byte, err error) {
 
 		for bits >= 8 {
 			bits -= 8
-			out = append(out, byte(acc>>bits&0xff))
+			out = append(out, byte(acc>>bits))
 		}
 	}
 
@@ -165,7 +169,7 @@ func bech32CreateChecksum(prefix string, data []byte) []byte {
 
 	c := make([]byte, 6)
 	for i := range c {
-		c[i] = bech32Alphabet[byte((p>>uint(5*(5-i)))&31)]
+		c[i] = bech32Alphabet[byte((p>>uint(5*(5-i)))&31)] //nolint:gomnd
 	}
 
 	return c
@@ -176,8 +180,8 @@ func bech32PolyMod(values []int) int {
 	chk := 1
 
 	for _, v := range values {
-		b := chk >> 25
-		chk = (chk&0x1ffffff)<<5 ^ v
+		b := chk >> 25               //nolint:gomnd
+		chk = (chk&0x1ffffff)<<5 ^ v //nolint:gomnd
 
 		for i, g := range gen {
 			if (b>>uint(i))&1 == 1 {
@@ -191,11 +195,11 @@ func bech32PolyMod(values []int) int {
 
 func bech32PrefixExpand(p string) []int {
 	l := len(p)
-	r := make([]int, l*2+1, l*2+59)
+	r := make([]int, l*2+1)
 
 	for i, s := range p {
-		r[i] = int(s) >> 5
-		r[i+l+1] = int(s) & 31
+		r[i] = int(s) >> 5     //nolint:gomnd
+		r[i+l+1] = int(s) & 31 //nolint:gomnd
 	}
 
 	return r

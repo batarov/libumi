@@ -58,8 +58,10 @@ func (t Transaction) Version() uint8 {
 }
 
 // SetVersion ...
-func (t Transaction) SetVersion(n uint8) {
+func (t Transaction) SetVersion(n uint8) Transaction {
 	t[0] = n
+
+	return t
 }
 
 // Sender ...
@@ -68,8 +70,10 @@ func (t Transaction) Sender() Address {
 }
 
 // SetSender ...
-func (t Transaction) SetSender(a Address) {
+func (t Transaction) SetSender(a Address) Transaction {
 	copy(t[1:35], a)
+
+	return t
 }
 
 // Recipient ...
@@ -78,8 +82,10 @@ func (t Transaction) Recipient() Address {
 }
 
 // SetRecipient ...
-func (t Transaction) SetRecipient(a Address) {
+func (t Transaction) SetRecipient(a Address) Transaction {
 	copy(t[35:69], a)
+
+	return t
 }
 
 // Value ...
@@ -88,8 +94,10 @@ func (t Transaction) Value() uint64 {
 }
 
 // SetValue ...
-func (t Transaction) SetValue(n uint64) {
+func (t Transaction) SetValue(n uint64) Transaction {
 	binary.BigEndian.PutUint64(t[69:77], n)
+
+	return t
 }
 
 // Prefix ...
@@ -98,8 +106,10 @@ func (t Transaction) Prefix() string {
 }
 
 // SetPrefix ...
-func (t Transaction) SetPrefix(s string) {
+func (t Transaction) SetPrefix(s string) Transaction {
 	t[35], t[36] = prefixToVersion(s)
+
+	return t
 }
 
 // ProfitPercent ...
@@ -108,8 +118,10 @@ func (t Transaction) ProfitPercent() uint16 {
 }
 
 // SetProfitPercent ...
-func (t Transaction) SetProfitPercent(n uint16) {
+func (t Transaction) SetProfitPercent(n uint16) Transaction {
 	binary.BigEndian.PutUint16(t[37:39], n)
+
+	return t
 }
 
 // FeePercent ...
@@ -118,8 +130,10 @@ func (t Transaction) FeePercent() uint16 {
 }
 
 // SetFeePercent ...
-func (t Transaction) SetFeePercent(p uint16) {
+func (t Transaction) SetFeePercent(p uint16) Transaction {
 	binary.BigEndian.PutUint16(t[39:41], p)
+
+	return t
 }
 
 // Name ...
@@ -128,9 +142,11 @@ func (t Transaction) Name() string {
 }
 
 // SetName ...
-func (t Transaction) SetName(s string) {
+func (t Transaction) SetName(s string) Transaction {
 	t[41] = uint8(len(s))
 	copy(t[42:77], s)
+
+	return t
 }
 
 // SignTransaction ...
@@ -162,9 +178,9 @@ func VerifyTransaction(t []byte) error {
 			senderPrefixIs(umi),
 			structPrefixNot(genesis, umi),
 			structPrefixIsValid,
-			profitPercentBetween(0, 5_00),
-			feePercentBetween(1_00, 20_00),
-			nameIsValidUtf8,
+			profitPercentBetween(1_00, 5_00), //nolint:gomnd
+			feePercentBetween(0, 20_00),
+			nameIsValid,
 		),
 
 		ifVersionIsUpdateAddress(

@@ -108,7 +108,7 @@ func VerifyAddress(b []byte) error {
 }
 
 func prefixToVersion(s string) (a byte, b byte) {
-	if s != "genesis" {
+	if s != pfxGenesis {
 		a = ((s[0] - 96) << 2) | ((s[1] - 96) >> 3)
 		b = ((s[1] - 96) << 5) | (s[2] - 96)
 	}
@@ -117,16 +117,18 @@ func prefixToVersion(s string) (a byte, b byte) {
 }
 
 func versionToPrefix(a, b byte) string {
+	const asciiOffset = 96
+
 	if a == 0 && b == 0 {
-		return "genesis"
+		return pfxGenesis
 	}
 
 	var s strings.Builder
 
-	s.Grow(3)
-	s.WriteByte(((a >> 2) & 31) + 96)
-	s.WriteByte((((a & 3) << 3) | (b >> 5)) + 96)
-	s.WriteByte((b & 31) + 96)
+	s.Grow(pfxLen)
+	s.WriteByte(((a >> 2) & 31) + asciiOffset)
+	s.WriteByte((((a & 3) << 3) | (b >> 5)) + asciiOffset)
+	s.WriteByte((b & 31) + asciiOffset)
 
 	return s.String()
 }

@@ -164,7 +164,7 @@ func CalculateMerkleRoot(b Block) ([]byte, error) {
 
 	for n, m := next(int(c)); n > 0; n, m = next(n) {
 		for i := 0; i < n; i++ {
-			k1 := i * 2
+			k1 := i * 2 //nolint:gomnd
 			k2 := min(k1+1, m)
 			copy(t[:32], h[k1][:])
 			copy(t[32:], h[k2][:])
@@ -201,11 +201,11 @@ func min(a, b int) int {
 func next(count int) (nextCount, maxIdx int) {
 	maxIdx = count - 1
 
-	if count > 2 {
-		count += count % 2
+	if count > 2 { //nolint:gomnd
+		count += count & 1
 	}
 
-	nextCount = count / 2
+	nextCount = count / 2 //nolint:gomnd
 
 	return nextCount, maxIdx
 }

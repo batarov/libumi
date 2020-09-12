@@ -23,7 +23,6 @@ package libumi
 import (
 	"bytes"
 	"crypto/ed25519"
-	"encoding/binary"
 	"errors"
 	"runtime"
 	"sync"
@@ -54,77 +53,85 @@ func assert(b []byte, asserts ...func([]byte) error) error {
 	return runAsserts(b, asserts)
 }
 
-func runAsserts(b []byte, asserts []func([]byte) error) (err error) {
+func runAsserts(b []byte, asserts []func([]byte) error) error {
 	for _, assert := range asserts {
-		if err = assert(b); err != nil {
-			break
+		if err := assert(b); err != nil {
+			return err
 		}
 	}
 
-	return err
+	return nil
 }
 
 func ifVersionIsGenesis(asserts ...func([]byte) error) func([]byte) error {
-	return func(b []byte) (err error) {
+	return func(b []byte) error {
 		if b[0] == Genesis {
-			err = runAsserts(b, asserts)
+			return runAsserts(b, asserts)
 		}
 
-		return err
+		return nil
 	}
 }
 
 func ifVersionIsBasic(asserts ...func([]byte) error) func([]byte) error {
-	return func(b []byte) (err error) {
+	return func(b []byte) error {
 		if b[0] == Basic {
-			err = runAsserts(b, asserts)
+			return runAsserts(b, asserts)
 		}
 
-		return err
+		return nil
 	}
 }
 
 func ifVersionIsCreateOrUpdateStruct(asserts ...func([]byte) error) func([]byte) error {
-	return func(b []byte) (err error) {
+	return func(b []byte) error {
 		switch b[0] {
 		case CreateStructure, UpdateStructure:
-			err = runAsserts(b, asserts)
+			return runAsserts(b, asserts)
 		}
 
-		return err
+		return nil
 	}
 }
 
 func ifVersionIsUpdateAddress(asserts ...func([]byte) error) func([]byte) error {
-	return func(b []byte) (err error) {
+	return func(b []byte) error {
 		switch b[0] {
 		case UpdateProfitAddress, UpdateFeeAddress, CreateTransitAddress, DeleteTransitAddress:
-			err = runAsserts(b, asserts)
+			return runAsserts(b, asserts)
 		}
 
-		return err
+		return nil
 	}
 }
 
 func lengthIs(l int) func([]byte) error {
-	return func(b []byte) (err error) {
+	return func(b []byte) error {
 		if b == nil || len(b) != l {
-			err = ErrInvalidLength
+			return ErrInvalidLength
 		}
 
-		return err
+		return nil
 	}
 }
 
 func lengthIsValid(b []byte) error {
-	if len(b) < HeaderLength+TxLength {
+	currentLen := len(b)
+	minimalLen := HeaderLength + TxLength
+
+	if currentLen < minimalLen {
+		return ErrInvalidLength
+	}
+
+	expectedLen := HeaderLength + (TxLength * int((Block)(b).TxCount()))
+	if currentLen != expectedLen {
 		return ErrInvalidLength
 	}
 
 	return nil
 }
 
-func signatureIsValid(b []byte) (err error) {
+func signatureIsValid(b []byte) error {
 	pub, msg, sig := b[3:35], b[0:85], b[85:149]
 
 	if len(b) != TxLength {
@@ -132,87 +139,108 @@ func signatureIsValid(b []byte) (err error) {
 	}
 
 	if !ed25519.Verify(pub, msg, sig) {
-		err = ErrInvalidSignature
+		return ErrInvalidSignature
 	}
 
-	return err
+	return nil
 }
 
 func senderPrefixIs(v uint16) func([]byte) error {
-	return func(b []byte) (err error) {
-		if binary.BigEndian.Uint16(b[1:3]) != v {
-			err = ErrInvalidSender
+	return func(b []byte) error {
+		if (Transaction)(b).Sender().Version() != v {
+			return ErrInvalidSender
 		}
 
-		return err
+		return nil
 	}
 }
 
 func senderPrefixNot(v uint16) func([]byte) error {
-	return func(b []byte) (err error) {
-		if binary.BigEndian.Uint16(b[1:3]) == v {
-			err = ErrInvalidSender
+	return func(b []byte) error {
+		if (Transaction)(b).Sender().Version() == v {
+			return ErrInvalidSender
 		}
 
-		return err
+		return nil
 	}
 }
 
 func senderPrefixIsValid(b []byte) error {
-	return adrVersionIsValid(binary.BigEndian.Uint16(b[1:3]))
-}
-
-func senderRecipientNotEqual(b []byte) (err error) {
-	if bytes.Equal(b[1:35], b[35:69]) {
-		err = ErrInvalidRecipient
+	if err := adrVersionIsValid((Transaction)(b).Sender().Version()); err != nil {
+		return ErrInvalidSender
 	}
 
-	return err
+	return nil
+}
+
+func senderRecipientNotEqual(b []byte) error {
+	if bytes.Equal((Transaction)(b).Recipient(), (Transaction)(b).Sender()) {
+		return ErrInvalidRecipient
+	}
+
+	return nil
 }
 
 func recipientPrefixIs(v uint16) func([]byte) error {
-	return func(b []byte) (err error) {
-		if binary.BigEndian.Uint16(b[35:37]) != v {
-			err = ErrInvalidRecipient
+	return func(b []byte) error {
+		if (Transaction)(b).Recipient().Version() != v {
+			return ErrInvalidRecipient
 		}
 
-		return err
+		return nil
 	}
 }
 
 func recipientPrefixNot(vs ...uint16) func([]byte) error {
-	return func(b []byte) (err error) {
-		n := binary.BigEndian.Uint16(b[35:37])
+	return func(b []byte) error {
+		n := (Transaction)(b).Recipient().Version()
 		for _, v := range vs {
 			if n == v {
-				err = ErrInvalidRecipient
+				return ErrInvalidRecipient
 			}
 		}
 
-		return err
+		return nil
 	}
 }
 
 func recipientPrefixIsValid(b []byte) error {
-	return adrVersionIsValid(binary.BigEndian.Uint16(b[35:37]))
+	if err := adrVersionIsValid((Transaction)(b).Recipient().Version()); err != nil {
+		return ErrInvalidRecipient
+	}
+
+	return nil
 }
 
 func structPrefixNot(vs ...uint16) func([]byte) error {
-	return recipientPrefixNot(vs...)
+	return func(b []byte) error {
+		n := (Transaction)(b).Recipient().Version()
+		for _, v := range vs {
+			if n == v {
+				return ErrInvalidPrefix
+			}
+		}
+
+		return nil
+	}
 }
 
 func structPrefixIsValid(b []byte) error {
-	return recipientPrefixIsValid(b)
+	if err := adrVersionIsValid((Transaction)(b).Recipient().Version()); err != nil {
+		return ErrInvalidPrefix
+	}
+
+	return nil
 }
 
-func nameIsValidUtf8(b []byte) error {
+func nameIsValid(b []byte) error {
 	const maxLength = 35
 
 	if b[41] > maxLength {
 		return ErrInvalidName
 	}
 
-	if !utf8.Valid(b[42:(42 + b[41])]) {
+	if !utf8.ValidString((Transaction)(b).Name()) {
 		return ErrInvalidName
 	}
 
@@ -220,90 +248,128 @@ func nameIsValidUtf8(b []byte) error {
 }
 
 func feePercentBetween(min, max uint16) func([]byte) error {
-	return func(b []byte) (err error) {
-		p := binary.BigEndian.Uint16(b[39:41])
+	return func(b []byte) error {
+		p := (Transaction)(b).FeePercent()
 
 		if p < min || p > max {
-			err = ErrInvalidFeePercent
+			return ErrInvalidFeePercent
 		}
 
-		return err
+		return nil
 	}
 }
 
 func profitPercentBetween(min, max uint16) func([]byte) error {
-	return func(b []byte) (err error) {
-		p := binary.BigEndian.Uint16(b[37:39])
+	return func(b []byte) error {
+		p := (Transaction)(b).ProfitPercent()
 
 		if p < min || p > max {
-			err = ErrInvalidProfitPercent
+			return ErrInvalidProfitPercent
 		}
 
-		return err
+		return nil
 	}
 }
 
 func versionIsValid(b []byte) error {
 	switch len(b) {
 	case AddressLength:
-		return adrVersionIsValid(binary.BigEndian.Uint16(b[0:2]))
+		return adrVersionIsValid((Address)(b).Version())
 	case TxLength:
-		return txVersionIsValid(b[0])
+		return txVersionIsValid((Transaction)(b).Version())
 	default:
-		return blkVersionIsValid(b[0])
+		return blkVersionIsValid((Block)(b).Version())
 	}
 }
 
-func adrVersionIsValid(_ uint16) (err error) {
-	return err
+func adrVersionIsValid(v uint16) error {
+	const (
+		chrBitLen  = 5
+		chrBitMask = 0x1f
+		chrMin     = 1
+		chrMax     = 27
+	)
+
+	if v == genesis {
+		return nil
+	}
+
+	for i := 0; i < 3; i++ {
+		chr := (v >> (i * chrBitLen)) & chrBitMask
+		if chr < chrMin || chr > chrMax {
+			return ErrInvalidPrefix
+		}
+	}
+
+	return nil
 }
 
-func txVersionIsValid(v uint8) (err error) {
+func txVersionIsValid(v uint8) error {
 	if v > DeleteTransitAddress {
-		err = ErrInvalidVersion
+		return ErrInvalidVersion
 	}
 
-	return err
+	return nil
 }
 
-func blkVersionIsValid(v uint8) (err error) {
+func blkVersionIsValid(v uint8) error {
 	if v > Basic {
-		err = ErrInvalidVersion
+		return ErrInvalidVersion
 	}
 
-	return err
+	return nil
 }
 
-func merkleRootIsValid(b []byte) (err error) {
+func merkleRootIsValid(b []byte) error {
 	mrk, err := CalculateMerkleRoot(b)
 	if err != nil {
 		return err
 	}
 
-	if !bytes.Equal(b[33:65], mrk) {
-		err = ErrInvalidMerkle
+	if !bytes.Equal((Block)(b).MerkleRootHash(), mrk) {
+		return ErrInvalidMerkle
 	}
 
-	return err
-}
-
-func prevBlockHashIsNull(_ []byte) error {
 	return nil
 }
 
-func prevBlockHashNotNull(_ []byte) error {
+func prevBlockHashIsNull(b []byte) error {
+	if !bytes.Equal((Block)(b).PreviousBlockHash(), make([]byte, 32)) {
+		return ErrInvalidPrevHash
+	}
+
 	return nil
 }
 
-func allTransactionAreGenesis(_ []byte) error {
+func prevBlockHashNotNull(b []byte) error {
+	if bytes.Equal((Block)(b).PreviousBlockHash(), make([]byte, 32)) {
+		return ErrInvalidPrevHash
+	}
+
 	return nil
 }
 
-func allTransactionNotGenesis(_ []byte) error {
+func allTransactionAreGenesis(b []byte) error {
+	for i, l := HeaderLength, len(b); i < l; i += TxLength {
+		if b[i] != Genesis {
+			return ErrInvalidTx
+		}
+	}
+
 	return nil
 }
 
-func allTransactionsAreValid(b []byte) (err error) {
+func allTransactionNotGenesis(b []byte) error {
+	for i, l := HeaderLength, len(b); i < l; i += TxLength {
+		if b[i] == Genesis {
+			return ErrInvalidTx
+		}
+	}
+
+	return nil
+}
+
+func allTransactionsAreValid(b []byte) error {
 	blk := (Block)(b)
 	n := blk.TxCount()
 	c := make(chan []byte, n)
@@ -314,30 +380,33 @@ func allTransactionsAreValid(b []byte) (err error) {
 
 	close(c)
 
-	runParallel(func() {
+	return runParallel(func() error {
 		for tx := range c {
 			if VerifyTransaction(tx) != nil {
-				err = ErrInvalidTx
-
-				return
+				return ErrInvalidTx
 			}
 		}
-	})
 
-	return err
+		return nil
+	})
 }
 
-func runParallel(f func()) {
+func runParallel(fn func() error) (err error) {
 	var wg sync.WaitGroup
 
 	for i := 0; i < runtime.NumCPU(); i++ {
 		wg.Add(1)
 
 		go func() {
-			f()
+			if er := fn(); er != nil {
+				err = er
+			}
+
 			wg.Done()
 		}()
 	}
 
 	wg.Wait()
+
+	return err
 }

@@ -99,10 +99,11 @@ func TestAddress_Version(t *testing.T) {
 	}
 }
 
-/*
 func TestVerifyAddressInvalidVersion(t *testing.T) {
 	tests := []uint16{
-		1,
+		1, 28,
+		32, 896,
+		1024, 28672,
 	}
 
 	for _, test := range tests {
@@ -116,4 +117,3 @@ func TestVerifyAddressInvalidVersion(t *testing.T) {
 		}
 	}
 }
-*/

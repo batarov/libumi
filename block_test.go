@@ -22,9 +22,13 @@ package libumi_test
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/umitop/libumi"
 )
@@ -76,6 +80,270 @@ func TestCalculateMerkleNonUniqError(t *testing.T) {
 	exp := libumi.ErrNonUniqueTx
 
 	if !errors.Is(act, exp) {
+		t.Fatalf("Expected: %v, got: %v", exp, act)
+	}
+}
+
+func TestBlockGenesis(t *testing.T) {
+	pub, sec, _ := ed25519.GenerateKey(rand.Reader)
+
+	tx := libumi.NewTransaction().
+		SetVersion(libumi.Genesis).
+		SetSender(libumi.NewAddress().SetPrefix("genesis").SetPublicKey(pub)).
+		SetRecipient(libumi.NewAddress().SetPrefix("umi").SetPublicKey(pub)).
+		SetValue(42)
+
+	libumi.SignTransaction(tx, sec)
+
+	blk := libumi.NewBlock()
+	blk.SetVersion(libumi.Genesis)
+	blk.AppendTransaction(tx)
+
+	mrk, _ := libumi.CalculateMerkleRoot(blk)
+	blk.SetMerkleRootHash(mrk)
+
+	libumi.SignBlock(blk, sec)
+
+	err := libumi.VerifyBlock(blk)
+	if err != nil {
+		t.Fatalf("Expected: %v, got: %v", nil, err)
+	}
+}
+
+func TestBlockBasic(t *testing.T) {
+	pub, sec, _ := ed25519.GenerateKey(rand.Reader)
+
+	tx := libumi.NewTransaction().
+		SetVersion(libumi.Basic).
+		SetSender(libumi.NewAddress().SetPrefix("umi").SetPublicKey(pub)).
+		SetRecipient(libumi.NewAddress().SetPrefix("aaa").SetPublicKey(pub)).
+		SetValue(42)
+
+	libumi.SignTransaction(tx, sec)
+
+	blk := libumi.NewBlock()
+	blk.SetVersion(libumi.Basic)
+	blk.AppendTransaction(tx)
+
+	mrk, _ := libumi.CalculateMerkleRoot(blk)
+	blk.SetMerkleRootHash(mrk)
+	blk.SetPreviousBlockHash(blk.Hash())
+
+	libumi.SignBlock(blk, sec)
+
+	err := libumi.VerifyBlock(blk)
+	if err != nil {
+		t.Fatalf("Expected: %v, got: %v", nil, err)
+	}
+}
+
+func TestBlockLengthMustBeValid(t *testing.T) {
+	cases := []struct {
+		name string
+		data []byte
+		exp  error
+	}{
+		{
+			name: "data must not be null",
+			data: nil,
+			exp:  libumi.ErrInvalidLength,
+		},
+		{
+			name: "length must not be less then minimal",
+			data: make([]byte, libumi.HeaderLength+libumi.TxLength-1),
+			exp:  libumi.ErrInvalidLength,
+		},
+		{
+			name: "length must match transaction count",
+			data: func() []byte {
+				blk := make([]byte, libumi.HeaderLength+libumi.TxLength+1)
+				binary.BigEndian.PutUint16(blk[69:71], 1)
+
+				return blk
+			}(),
+			exp: libumi.ErrInvalidLength,
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			err := libumi.VerifyBlock(tc.data)
+
+			if !errors.Is(err, tc.exp) {
+				t.Fatalf("Expected: %v, got: %v", tc.exp, err)
+			}
+		})
+	}
+}
+
+func TestBlockVersionMustBeValid(t *testing.T) {
+	blk := libumi.NewBlock()
+	blk.SetVersion(255)
+	blk.AppendTransaction(libumi.NewTransaction())
+
+	err := libumi.VerifyBlock(blk)
+	exp := libumi.ErrInvalidVersion
+
+	if !errors.Is(err, exp) {
+		t.Fatalf("Expected: %v, got: %v", exp, err)
+	}
+}
+
+func TestBlockSignatureMustBeValid(t *testing.T) {
+	blk := libumi.NewBlock()
+	blk.AppendTransaction(libumi.NewTransaction())
+
+	err := libumi.VerifyBlock(blk)
+	exp := libumi.ErrInvalidSignature
+
+	if !errors.Is(err, exp) {
+		t.Fatalf("Expected: %v, got: %v", exp, err)
+	}
+}
+
+func TestBlockGenesisPrevBlockHashIsNull(t *testing.T) {
+	_, sec, _ := ed25519.GenerateKey(rand.Reader)
+
+	blk := libumi.NewBlock()
+	blk.SetVersion(libumi.Genesis)
+	blk.AppendTransaction(libumi.NewTransaction())
+	blk.SetPreviousBlockHash(blk.Hash())
+
+	libumi.SignBlock(blk, sec)
+
+	err := libumi.VerifyBlock(blk)
+	exp := libumi.ErrInvalidPrevHash
+
+	if !errors.Is(err, exp) {
+		t.Fatalf("Expected: %v, got: %v", exp, err)
+	}
+}
+
+func TestBlockGenesisCanContainOnlyGenesisTxs(t *testing.T) {
+	_, sec, _ := ed25519.GenerateKey(rand.Reader)
+
+	blk := libumi.NewBlock()
+	blk.SetVersion(libumi.Genesis)
+	blk.AppendTransaction(libumi.NewTransaction())
+
+	libumi.SignBlock(blk, sec)
+
+	err := libumi.VerifyBlock(blk)
+	exp := libumi.ErrInvalidTx
+
+	if !errors.Is(err, exp) {
+		t.Fatalf("Expected: %v, got: %v", exp, err)
+	}
+}
+
+func TestBlockBasicPrevBlockHashIsNotNull(t *testing.T) {
+	_, sec, _ := ed25519.GenerateKey(rand.Reader)
+
+	blk := libumi.NewBlock()
+	blk.AppendTransaction(libumi.NewTransaction())
+
+	libumi.SignBlock(blk, sec)
+
+	err := libumi.VerifyBlock(blk)
+	exp := libumi.ErrInvalidPrevHash
+
+	if !errors.Is(err, exp) {
+		t.Fatalf("Expected: %v, got: %v", exp, err)
+	}
+}
+
+func TestBlockBasicCanNotContainGenesisTxs(t *testing.T) {
+	_, sec, _ := ed25519.GenerateKey(rand.Reader)
+
+	blk := libumi.NewBlock()
+	blk.AppendTransaction(libumi.NewTransaction().SetVersion(libumi.Genesis))
+	blk.SetPreviousBlockHash(blk.Hash())
+
+	libumi.SignBlock(blk, sec)
+
+	err := libumi.VerifyBlock(blk)
+	exp := libumi.ErrInvalidTx
+
+	if !errors.Is(err, exp) {
+		t.Fatalf("Expected: %v, got: %v", exp, err)
+	}
+}
+
+func TestBlockMustNotContainDuplicateTxs(t *testing.T) {
+	_, sec, _ := ed25519.GenerateKey(rand.Reader)
+
+	blk := libumi.NewBlock()
+	blk.AppendTransaction(libumi.NewTransaction())
+	blk.AppendTransaction(libumi.NewTransaction())
+	blk.SetPreviousBlockHash(blk.Hash())
+
+	libumi.SignBlock(blk, sec)
+
+	err := libumi.VerifyBlock(blk)
+	exp := libumi.ErrNonUniqueTx
+
+	if !errors.Is(err, exp) {
+		t.Fatalf("Expected: %v, got: %v", exp, err)
+	}
+}
+
+func TestBlockMustHaveValidMerkleRoot(t *testing.T) {
+	_, sec, _ := ed25519.GenerateKey(rand.Reader)
+
+	blk := libumi.NewBlock()
+	blk.AppendTransaction(libumi.NewTransaction())
+	blk.SetPreviousBlockHash(blk.Hash())
+
+	libumi.SignBlock(blk, sec)
+
+	err := libumi.VerifyBlock(blk)
+	exp := libumi.ErrInvalidMerkle
+
+	if !errors.Is(err, exp) {
+		t.Fatalf("Expected: %v, got: %v", exp, err)
+	}
+}
+
+func TestBlockMustContainValidTxs(t *testing.T) {
+	_, sec, _ := ed25519.GenerateKey(rand.Reader)
+
+	blk := libumi.NewBlock()
+	blk.AppendTransaction(libumi.NewTransaction())
+	blk.SetPreviousBlockHash(blk.Hash())
+
+	mrk, _ := libumi.CalculateMerkleRoot(blk)
+	blk.SetMerkleRootHash(mrk)
+
+	libumi.SignBlock(blk, sec)
+
+	err := libumi.VerifyBlock(blk)
+	exp := libumi.ErrInvalidTx
+
+	if !errors.Is(err, exp) {
+		t.Fatalf("Expected: %v, got: %v", exp, err)
+	}
+}
+
+func TestBlockSign(t *testing.T) {
+	pub, sec, _ := ed25519.GenerateKey(rand.Reader)
+
+	blk := libumi.NewBlock()
+
+	libumi.SignBlock(blk, sec)
+
+	if !bytes.Equal(blk.PublicKey(), pub) {
+		t.Fatalf("Expected: %x, got: %x", pub, blk.PublicKey())
+	}
+}
+
+func TestBlockTimestamp(t *testing.T) {
+	blk := libumi.NewBlock()
+
+	exp := uint32(time.Now().Unix())
+	act := blk.SetTimestamp(exp).Timestamp()
+
+	if act != exp {
 		t.Fatalf("Expected: %v, got: %v", exp, act)
 	}
 }
