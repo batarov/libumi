@@ -102,12 +102,12 @@ func (t Transaction) SetValue(n uint64) Transaction {
 
 // Prefix ...
 func (t Transaction) Prefix() string {
-	return versionToPrefix(t[35], t[36])
+	return versionToPrefix(binary.BigEndian.Uint16(t[35:37]))
 }
 
 // SetPrefix ...
 func (t Transaction) SetPrefix(s string) Transaction {
-	t[35], t[36] = prefixToVersion(s)
+	binary.BigEndian.PutUint16(t[35:37], prefixToVersion(s))
 
 	return t
 }

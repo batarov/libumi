@@ -77,12 +77,12 @@ func (a Address) SetVersion(v uint16) Address {
 
 // Prefix ...
 func (a Address) Prefix() string {
-	return versionToPrefix(a[0], a[1])
+	return versionToPrefix(binary.BigEndian.Uint16(a[0:2]))
 }
 
 // SetPrefix ...
 func (a Address) SetPrefix(s string) Address {
-	a[0], a[1] = prefixToVersion(s)
+	binary.BigEndian.PutUint16(a[0:2], prefixToVersion(s))
 
 	return a
 }
@@ -107,28 +107,35 @@ func VerifyAddress(b []byte) error {
 	)
 }
 
-func prefixToVersion(s string) (a byte, b byte) {
+func prefixToVersion(s string) (v uint16) {
 	if s != pfxGenesis {
-		a = ((s[0] - 96) << 2) | ((s[1] - 96) >> 3)
-		b = ((s[1] - 96) << 5) | (s[2] - 96)
+		for i := range s {
+			v |= setChrToVer(s[i], i)
+		}
 	}
 
-	return a, b
+	return v
 }
 
-func versionToPrefix(a, b byte) string {
-	const asciiOffset = 96
+func setChrToVer(c byte, i int) uint16 {
+	return (uint16(c) - 96) << ((2 - i) * 5)
+}
 
-	if a == 0 && b == 0 {
+func versionToPrefix(v uint16) string {
+	if v == genesis {
 		return pfxGenesis
 	}
 
 	var s strings.Builder
 
 	s.Grow(pfxLen)
-	s.WriteByte(((a >> 2) & 31) + asciiOffset)
-	s.WriteByte((((a & 3) << 3) | (b >> 5)) + asciiOffset)
-	s.WriteByte((b & 31) + asciiOffset)
+	s.WriteByte(getChrFromVer(v, 0))
+	s.WriteByte(getChrFromVer(v, 1))
+	s.WriteByte(getChrFromVer(v, 2))
 
 	return s.String()
+}
+
+func getChrFromVer(v uint16, i int) byte {
+	return byte(v>>((2-i)*5))&31 + 96
 }

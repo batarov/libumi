@@ -289,8 +289,8 @@ func adrVersionIsValid(v uint16) error {
 	}
 
 	for i := 0; i < 3; i++ {
-		chr := (v >> (i * 5)) & 31 //nolint:gomnd
-		if chr < 1 || chr > 26 {
+		chr := getChrFromVer(v, i)
+		if chr < 97 || chr > 122 {
 			return ErrInvalidPrefix
 		}
 	}
