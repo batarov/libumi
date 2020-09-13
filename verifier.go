@@ -65,18 +65,16 @@ func runAsserts(b []byte, asserts []func([]byte) error) error {
 }
 
 func ifVersionIsGenesis(asserts ...func([]byte) error) func([]byte) error {
-	return func(b []byte) error {
-		if b[0] == Genesis {
-			return runAsserts(b, asserts)
-		}
-
-		return nil
-	}
+	return ifVersionIs(Genesis, asserts...)
 }
 
 func ifVersionIsBasic(asserts ...func([]byte) error) func([]byte) error {
+	return ifVersionIs(Basic, asserts...)
+}
+
+func ifVersionIs(v uint8, asserts ...func([]byte) error) func([]byte) error {
 	return func(b []byte) error {
-		if b[0] == Basic {
+		if b[0] == v {
 			return runAsserts(b, asserts)
 		}
 
@@ -216,22 +214,20 @@ func inArray(n uint16, vs []uint16) bool {
 	return false
 }
 
-func structPrefixNot(vs ...uint16) func([]byte) error {
+func structPrefixValidAndNot(vs ...uint16) func([]byte) error {
 	return func(b []byte) error {
-		if inArray(binary.BigEndian.Uint16(b[35:37]), vs) {
+		ver := binary.BigEndian.Uint16(b[35:37])
+
+		if err := adrVersionIsValid(ver); err != nil {
+			return ErrInvalidPrefix
+		}
+
+		if inArray(ver, vs) {
 			return ErrInvalidPrefix
 		}
 
 		return nil
 	}
-}
-
-func structPrefixIsValid(b []byte) error {
-	if err := adrVersionIsValid((Transaction)(b).Recipient().Version()); err != nil {
-		return ErrInvalidPrefix
-	}
-
-	return nil
 }
 
 func nameIsValid(b []byte) error {
@@ -251,8 +247,7 @@ func nameIsValid(b []byte) error {
 func feePercentBetween(min, max uint16) func([]byte) error {
 	return func(b []byte) error {
 		p := (Transaction)(b).FeePercent()
-
-		if p < min || p > max {
+		if notBetween(p, min, max) {
 			return ErrInvalidFeePercent
 		}
 
@@ -263,13 +258,20 @@ func feePercentBetween(min, max uint16) func([]byte) error {
 func profitPercentBetween(min, max uint16) func([]byte) error {
 	return func(b []byte) error {
 		p := (Transaction)(b).ProfitPercent()
-
-		if p < min || p > max {
+		if notBetween(p, min, max) {
 			return ErrInvalidProfitPercent
 		}
 
 		return nil
 	}
+}
+
+func notBetween(v, min, max uint16) bool {
+	if v < min || v > max {
+		return true
+	}
+
+	return false
 }
 
 func versionIsValid(b []byte) error {

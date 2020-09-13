@@ -174,8 +174,7 @@ func VerifyTransaction(t []byte) error {
 
 		ifVersionIsCreateOrUpdateStruct(
 			senderPrefixIs(umi),
-			structPrefixNot(genesis, umi),
-			structPrefixIsValid,
+			structPrefixValidAndNot(genesis, umi),
 			profitPercentBetween(1_00, 5_00), //nolint:gomnd
 			feePercentBetween(0, 20_00),
 			nameIsValid,
